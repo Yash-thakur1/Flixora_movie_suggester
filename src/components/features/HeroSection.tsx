@@ -21,9 +21,10 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ movie, trailerKey }: HeroSectionProps) {
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlistStore();
+  const addToWatchlist = useWatchlistStore((state) => state.addToWatchlist);
+  const removeFromWatchlist = useWatchlistStore((state) => state.removeFromWatchlist);
+  const inWatchlist = useWatchlistStore((state) => state.items.some((m) => m.id === movie.id));
   const { openTrailerModal } = useUIStore();
-  const inWatchlist = isInWatchlist(movie.id);
 
   const handleWatchlistToggle = () => {
     if (inWatchlist) {

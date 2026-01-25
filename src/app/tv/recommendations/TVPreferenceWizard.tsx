@@ -147,7 +147,7 @@ export function TVPreferenceWizard() {
                     : 'bg-dark-800 border-dark-600 text-gray-300 hover:border-primary-500/50'
                 )}
               >
-                {era === 'latest' ? '🆕 Latest' : era === 'classic' ? '🎬 Classic' : `📅 ${era}`}
+                {era === 'all' ? '🌐 All Eras' : era === 'latest' ? '🆕 Latest' : era === 'classic' ? '🎬 Classic' : `📅 ${era}`}
               </button>
             ))}
           </div>

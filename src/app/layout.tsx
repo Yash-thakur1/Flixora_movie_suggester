@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import { Header, Footer } from '@/components/layout';
 import { TrailerModal } from '@/components/movies';
+import { AuthProvider } from '@/components/providers/AuthProvider';
+import { WatchlistSyncProvider } from '@/components/providers/WatchlistSyncProvider';
 import './globals.css';
 
 const inter = Inter({
@@ -78,17 +80,21 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} dark`}>
       <body className="min-h-screen bg-dark-950">
-        {/* Header */}
-        <Header />
+        <AuthProvider>
+          <WatchlistSyncProvider>
+            {/* Header */}
+            <Header />
 
-        {/* Main content */}
-        <main className="min-h-screen pt-16 md:pt-20">{children}</main>
+            {/* Main content */}
+            <main className="min-h-screen pt-16 md:pt-20">{children}</main>
 
-        {/* Footer */}
-        <Footer />
+            {/* Footer */}
+            <Footer />
 
-        {/* Global modals */}
-        <TrailerModal />
+            {/* Global modals */}
+            <TrailerModal />
+          </WatchlistSyncProvider>
+        </AuthProvider>
       </body>
     </html>
   );

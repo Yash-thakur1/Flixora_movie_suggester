@@ -8,6 +8,7 @@ import { getImageUrl, getYear, getGenreName } from '@/lib/tmdb';
 import { cn, getPlaceholderDataUrl } from '@/lib/utils';
 import { RatingBadge, Badge } from '@/components/ui';
 import { useWatchlistStore } from '@/store';
+import { useMoviePrefetch } from '@/hooks';
 
 /**
  * Movie Card Component
@@ -29,8 +30,13 @@ export function MovieCard({
   showGenres = true,
   variant = 'default',
 }: MovieCardProps) {
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlistStore();
-  const inWatchlist = isInWatchlist(movie.id);
+  const addToWatchlist = useWatchlistStore((state) => state.addToWatchlist);
+  const removeFromWatchlist = useWatchlistStore((state) => state.removeFromWatchlist);
+  // Subscribe to items array so component re-renders when watchlist changes
+  const inWatchlist = useWatchlistStore((state) => state.items.some((m) => m.id === movie.id));
+  
+  // Prefetch movie data on hover
+  const prefetchProps = useMoviePrefetch(movie.id);
 
   const handleWatchlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -49,7 +55,7 @@ export function MovieCard({
   };
 
   return (
-    <div className="group relative">
+    <div className="group relative" {...prefetchProps}>
       <Link href={`/movie/${movie.id}`} className="block">
         <div
           className={cn(
@@ -136,10 +142,13 @@ export function MovieCard({
  * Horizontal movie card for search results and lists
  */
 export function MovieCardHorizontal({ movie }: { movie: Movie }) {
+  const prefetchProps = useMoviePrefetch(movie.id);
+  
   return (
     <Link
       href={`/movie/${movie.id}`}
       className="flex gap-3 p-3 rounded-lg hover:bg-dark-800 transition-colors"
+      {...prefetchProps}
     >
       <div className="relative w-16 h-24 shrink-0 rounded-lg overflow-hidden">
         <Image
@@ -148,6 +157,9 @@ export function MovieCardHorizontal({ movie }: { movie: Movie }) {
           fill
           className="object-cover"
           sizes="64px"
+          loading="lazy"
+          placeholder="blur"
+          blurDataURL={getPlaceholderDataUrl()}
         />
       </div>
       <div className="flex-1 min-w-0">

@@ -25,6 +25,9 @@ export function CastCard({ cast, className }: CastCardProps) {
           fill
           className="object-cover"
           sizes="112px"
+          loading="lazy"
+          placeholder="blur"
+          blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTEyIiBoZWlnaHQ9IjExMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWYyOTM3Ii8+PC9zdmc+"
         />
         {!cast.profile_path && (
           <div className="absolute inset-0 bg-dark-700 flex items-center justify-center">
@@ -82,6 +85,9 @@ export function CrewCard({ crew, className }: CrewCardProps) {
           fill
           className="object-cover"
           sizes="48px"
+          loading="lazy"
+          placeholder="blur"
+          blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzFmMjkzNyIvPjwvc3ZnPg=="
         />
         {!crew.profile_path && (
           <div className="absolute inset-0 bg-dark-700 flex items-center justify-center">

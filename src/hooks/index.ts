@@ -272,3 +272,142 @@ export function useKeyPress(targetKey: string, callback: () => void): void {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [targetKey, callback]);
 }
+
+// ============================================
+// Movie Prefetch Hooks
+// ============================================
+
+/**
+ * Hook to prefetch movie data when card is hovered
+ */
+export function useMoviePrefetch(movieId: number): {
+  onMouseEnter: () => void;
+  onFocus: () => void;
+} {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleHover = useCallback(() => {
+    // Small delay to avoid prefetching on quick mouse passes
+    timeoutRef.current = setTimeout(async () => {
+      const { prefetchMovieEssentials } = await import('@/lib/movieCache');
+      prefetchMovieEssentials(movieId);
+    }, 150);
+  }, [movieId]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return {
+    onMouseEnter: handleHover,
+    onFocus: handleHover,
+  };
+}
+
+/**
+ * Hook to prefetch movies when they enter the viewport
+ */
+export function useMovieViewportPrefetch(
+  movieIds: number[],
+  options: { enabled?: boolean; rootMargin?: string } = {}
+): React.RefObject<HTMLDivElement> {
+  const { enabled = true, rootMargin = '200px' } = options;
+  const ref = useRef<HTMLDivElement>(null);
+  const prefetchedRef = useRef(new Set<number>());
+
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        if (entries[0].isIntersecting) {
+          const { queueMoviesForPrefetch } = await import('@/lib/movieCache');
+          const newIds = movieIds.filter(id => !prefetchedRef.current.has(id));
+          if (newIds.length > 0) {
+            queueMoviesForPrefetch(newIds);
+            newIds.forEach(id => prefetchedRef.current.add(id));
+          }
+        }
+      },
+      { rootMargin }
+    );
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [movieIds, enabled, rootMargin]);
+
+  return ref;
+}
+
+/**
+ * Hook to use cached movie data with SWR pattern
+ */
+export function useMovieData(movieId: number): {
+  data: import('@/lib/movieCache').CachedMovieData | null;
+  isLoading: boolean;
+  isStale: boolean;
+  refetch: () => Promise<void>;
+} {
+  const [data, setData] = useState<import('@/lib/movieCache').CachedMovieData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isStale, setIsStale] = useState(false);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { prefetchMovieFull, getMovieCache } = await import('@/lib/movieCache');
+      await prefetchMovieFull(movieId);
+      const cached = getMovieCache(movieId);
+      if (cached.data) {
+        setData(cached.data as import('@/lib/movieCache').CachedMovieData);
+        setIsStale(cached.isStale);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [movieId]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const { getMovieCache, prefetchMovieFull } = await import('@/lib/movieCache');
+      const cached = getMovieCache(movieId);
+      
+      if (cached.data) {
+        setData(cached.data as import('@/lib/movieCache').CachedMovieData);
+        setIsStale(cached.isStale);
+        setIsLoading(false);
+        
+        // Revalidate in background if stale
+        if (cached.isStale) {
+          prefetchMovieFull(movieId).then(() => {
+            const fresh = getMovieCache(movieId);
+            if (fresh.data) {
+              setData(fresh.data as import('@/lib/movieCache').CachedMovieData);
+              setIsStale(false);
+            }
+          });
+        }
+      } else {
+        // No cache, fetch fresh
+        await prefetchMovieFull(movieId);
+        const fresh = getMovieCache(movieId);
+        if (fresh.data) {
+          setData(fresh.data as import('@/lib/movieCache').CachedMovieData);
+        }
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [movieId]);
+
+  return { data, isLoading, isStale, refetch };
+}

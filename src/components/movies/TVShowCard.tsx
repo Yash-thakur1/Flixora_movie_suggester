@@ -29,8 +29,10 @@ export function TVShowCard({
   showGenres = true,
   variant = 'default',
 }: TVShowCardProps) {
-  const { addTVShowToWatchlist, removeTVShowFromWatchlist, isTVShowInWatchlist } = useWatchlistStore();
-  const inWatchlist = isTVShowInWatchlist(show.id);
+  const addTVShowToWatchlist = useWatchlistStore((state) => state.addTVShowToWatchlist);
+  const removeTVShowFromWatchlist = useWatchlistStore((state) => state.removeTVShowFromWatchlist);
+  // Subscribe to tvItems array so component re-renders when watchlist changes
+  const inWatchlist = useWatchlistStore((state) => state.tvItems.some((s) => s.id === show.id));
 
   const handleWatchlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();

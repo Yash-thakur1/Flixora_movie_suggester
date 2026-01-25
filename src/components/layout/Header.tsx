@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Search, Bookmark, Sparkles, Home, Film, Tv } from 'lucide-react';
 import { SearchBar, MobileSearchOverlay } from './SearchBar';
+import { UserMenu } from './UserMenu';
 import { useUIStore, useWatchlistStore } from '@/store';
 import { cn } from '@/lib/utils';
 
@@ -122,6 +123,11 @@ export function Header() {
             {/* Search (Desktop) */}
             <div className="hidden lg:block w-80">
               <SearchBar />
+            </div>
+
+            {/* User Menu (Desktop) */}
+            <div className="hidden md:block ml-4">
+              <UserMenu />
             </div>
 
             {/* Right side actions */}

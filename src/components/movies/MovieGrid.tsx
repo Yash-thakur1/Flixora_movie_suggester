@@ -1,13 +1,15 @@
 'use client';
 
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Movie } from '@/types/movie';
 import { MovieCard } from './MovieCard';
 import { MovieGridSkeleton } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useMovieViewportPrefetch } from '@/hooks';
 
 /**
- * Responsive movie grid with animations
+ * Responsive movie grid with animations and prefetching
  */
 
 interface MovieGridProps {
@@ -16,6 +18,7 @@ interface MovieGridProps {
   emptyMessage?: string;
   className?: string;
   columns?: 'auto' | 2 | 3 | 4 | 5 | 6;
+  prefetchOnScroll?: boolean;
 }
 
 export function MovieGrid({
@@ -24,7 +27,17 @@ export function MovieGrid({
   emptyMessage = 'No movies found',
   className,
   columns = 'auto',
+  prefetchOnScroll = true,
 }: MovieGridProps) {
+  // Get movie IDs for prefetching
+  const movieIds = useMemo(() => movies.map(m => m.id), [movies]);
+  
+  // Prefetch movies when grid enters viewport
+  const prefetchRef = useMovieViewportPrefetch(movieIds, { 
+    enabled: prefetchOnScroll && !loading,
+    rootMargin: '400px'
+  });
+  
   if (loading) {
     return <MovieGridSkeleton />;
   }
@@ -63,6 +76,7 @@ export function MovieGrid({
 
   return (
     <motion.div
+      ref={prefetchRef}
       initial="hidden"
       animate="visible"
       variants={{

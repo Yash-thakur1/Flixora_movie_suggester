@@ -133,6 +133,7 @@ export const QUICK_MOODS = [
 
 // Era presets for filtering
 export const ERA_PRESETS = {
+  all: { from: null, to: null }, // No date filtering - all eras combined
   latest: { from: new Date().getFullYear() - 1, to: new Date().getFullYear() },
   '2020s': { from: 2020, to: 2029 },
   '2010s': { from: 2010, to: 2019 },

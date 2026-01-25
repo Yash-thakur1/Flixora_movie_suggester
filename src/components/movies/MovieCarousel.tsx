@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movie } from '@/types/movie';
 import { MovieCard } from './MovieCard';
 import { cn } from '@/lib/utils';
+import { useMovieViewportPrefetch } from '@/hooks';
 
 /**
  * Horizontal scrollable movie carousel
@@ -16,6 +17,7 @@ interface MovieCarouselProps {
   title?: string;
   description?: string;
   className?: string;
+  prefetchOnScroll?: boolean;
 }
 
 export function MovieCarousel({
@@ -23,8 +25,18 @@ export function MovieCarousel({
   title,
   description,
   className,
+  prefetchOnScroll = true,
 }: MovieCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Get movie IDs for prefetching
+  const movieIds = useMemo(() => movies.map(m => m.id), [movies]);
+  
+  // Prefetch movies when carousel enters viewport
+  const prefetchRef = useMovieViewportPrefetch(movieIds, { 
+    enabled: prefetchOnScroll,
+    rootMargin: '300px' // Start prefetching when 300px before visible
+  });
 
   const scroll = (direction: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -37,7 +49,7 @@ export function MovieCarousel({
   };
 
   return (
-    <section className={cn('relative py-8', className)}>
+    <section ref={prefetchRef} className={cn('relative py-8', className)}>
       {/* Header */}
       {(title || description) && (
         <div className="mb-6 px-4 md:px-0">

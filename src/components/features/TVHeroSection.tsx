@@ -21,9 +21,10 @@ interface TVHeroSectionProps {
 }
 
 export function TVHeroSection({ show, trailerKey }: TVHeroSectionProps) {
-  const { addTVShowToWatchlist, removeTVShowFromWatchlist, isTVShowInWatchlist } = useWatchlistStore();
+  const addTVShowToWatchlist = useWatchlistStore((state) => state.addTVShowToWatchlist);
+  const removeTVShowFromWatchlist = useWatchlistStore((state) => state.removeTVShowFromWatchlist);
+  const inWatchlist = useWatchlistStore((state) => state.tvItems.some((s) => s.id === show.id));
   const { openTrailerModal } = useUIStore();
-  const inWatchlist = isTVShowInWatchlist(show.id);
 
   const handleWatchlistToggle = () => {
     if (inWatchlist) {

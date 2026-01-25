@@ -244,7 +244,7 @@ export interface GenresResponse {
 // ============================================
 
 export type Mood = 'happy' | 'dark' | 'emotional' | 'exciting' | 'relaxing' | 'thrilling';
-export type Era = 'latest' | '2020s' | '2010s' | '2000s' | '90s' | 'classic';
+export type Era = 'all' | 'latest' | '2020s' | '2010s' | '2000s' | '90s' | 'classic';
 export type RatingPreference = 'any' | 'high' | 'top';
 export type DurationPreference = 'short' | 'medium' | 'long' | 'any';
 
