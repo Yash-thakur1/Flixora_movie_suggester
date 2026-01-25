@@ -6,6 +6,7 @@ import { AuthProvider } from '@/components/providers/AuthProvider';
 import { WatchlistSyncProvider } from '@/components/providers/WatchlistSyncProvider';
 import { PerformanceProvider } from '@/components/providers/PerformanceProvider';
 import { NetworkStatusBanner } from '@/components/ui';
+import { ChatButton, ChatWindow } from '@/components/chat';
 import './globals.css';
 
 const inter = Inter({
@@ -99,6 +100,10 @@ export default function RootLayout({
 
               {/* Global modals */}
               <TrailerModal />
+              
+              {/* AI Chat Assistant */}
+              <ChatButton />
+              <ChatWindow />
             </WatchlistSyncProvider>
           </AuthProvider>
         </PerformanceProvider>

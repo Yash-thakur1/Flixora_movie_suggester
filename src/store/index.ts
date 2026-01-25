@@ -737,3 +737,125 @@ export const useSearchHistoryStore = create<SearchHistoryState>((set) => ({
   
   clearHistory: () => set({ recentSearches: [] }),
 }));
+
+// ============================================
+// AI Chat Store
+// ============================================
+
+import { 
+  ChatMessage, 
+  processMessage, 
+  createUserMessage, 
+  createWelcomeMessage,
+  createLoadingMessage,
+  createErrorMessage
+} from '@/lib/ai';
+
+interface ChatState {
+  // State
+  messages: ChatMessage[];
+  isOpen: boolean;
+  isLoading: boolean;
+  suggestedFollowUps: string[];
+  hasInitialized: boolean;
+  
+  // Actions
+  initialize: () => void;
+  sendMessage: (content: string) => Promise<void>;
+  openChat: () => void;
+  closeChat: () => void;
+  toggleChat: () => void;
+  clearChat: () => void;
+  setSuggestedFollowUps: (suggestions: string[]) => void;
+}
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  messages: [],
+  isOpen: false,
+  isLoading: false,
+  suggestedFollowUps: [],
+  hasInitialized: false,
+  
+  initialize: () => {
+    const { hasInitialized } = get();
+    if (hasInitialized) return;
+    
+    const welcomeMessage = createWelcomeMessage();
+    set({ 
+      messages: [welcomeMessage], 
+      hasInitialized: true,
+      suggestedFollowUps: [
+        "What's trending?",
+        "I'm feeling adventurous",
+        "Show me some comedies"
+      ]
+    });
+  },
+  
+  sendMessage: async (content: string) => {
+    const { isLoading } = get();
+    if (isLoading || !content.trim()) return;
+    
+    // Add user message
+    const userMessage = createUserMessage(content);
+    set((state) => ({
+      messages: [...state.messages, userMessage],
+      isLoading: true,
+      suggestedFollowUps: []
+    }));
+    
+    try {
+      // Process message and get response
+      const response = await processMessage(content);
+      
+      set((state) => ({
+        messages: [...state.messages, response.message],
+        isLoading: false,
+        suggestedFollowUps: response.suggestedFollowUps || []
+      }));
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorMessage = createErrorMessage(
+        'I had trouble finding recommendations. Please try again.'
+      );
+      
+      set((state) => ({
+        messages: [...state.messages, errorMessage],
+        isLoading: false,
+        suggestedFollowUps: ["Try again", "What's trending?"]
+      }));
+    }
+  },
+  
+  openChat: () => {
+    const { hasInitialized, initialize } = get();
+    if (!hasInitialized) {
+      initialize();
+    }
+    set({ isOpen: true });
+  },
+  
+  closeChat: () => set({ isOpen: false }),
+  
+  toggleChat: () => {
+    const { isOpen, hasInitialized, initialize } = get();
+    if (!isOpen && !hasInitialized) {
+      initialize();
+    }
+    set({ isOpen: !isOpen });
+  },
+  
+  clearChat: () => {
+    const welcomeMessage = createWelcomeMessage();
+    set({ 
+      messages: [welcomeMessage],
+      suggestedFollowUps: [
+        "What's trending?",
+        "I'm feeling adventurous", 
+        "Show me some comedies"
+      ]
+    });
+  },
+  
+  setSuggestedFollowUps: (suggestions) => set({ suggestedFollowUps: suggestions })
+}));
