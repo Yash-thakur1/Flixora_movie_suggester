@@ -41,3 +41,19 @@ export {
   scrollToTop,
 } from './Animations';
 
+// Optimized Components
+export {
+  OptimizedImage,
+  PosterImage,
+  BackdropImage,
+  ProfileImage,
+  generateBlurPlaceholder,
+  generateShimmerPlaceholder,
+} from './OptimizedImage';
+
+export {
+  OptimizedLink,
+  MovieLink,
+  TVShowLink,
+  ViewportPrefetchLink,
+} from './OptimizedLink';

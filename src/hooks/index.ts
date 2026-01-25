@@ -411,3 +411,207 @@ export function useMovieData(movieId: number): {
 
   return { data, isLoading, isStale, refetch };
 }
+
+// ============================================
+// Optimistic Data Hook
+// ============================================
+
+/**
+ * Hook for optimistic data loading with instant skeleton display
+ */
+export function useOptimisticData<T>(
+  key: string,
+  fetchFn: () => Promise<T>,
+  options: {
+    initialData?: T;
+    staleTime?: number;
+    cacheKey?: string;
+  } = {}
+): {
+  data: T | null;
+  isLoading: boolean;
+  isStale: boolean;
+  error: Error | null;
+  refetch: () => Promise<void>;
+} {
+  const [data, setData] = useState<T | null>(options.initialData ?? null);
+  const [isLoading, setIsLoading] = useState(!options.initialData);
+  const [isStale, setIsStale] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const fetchedRef = useRef(false);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const result = await fetchFn();
+      setData(result);
+      setIsStale(false);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchFn]);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
+    // If we have initial data, mark as loaded but stale
+    if (options.initialData) {
+      setIsStale(true);
+      // Revalidate in background
+      refetch();
+    } else {
+      refetch();
+    }
+  }, [options.initialData, refetch]);
+
+  return { data, isLoading, isStale, error, refetch };
+}
+
+// ============================================
+// Visibility-based Loading Hook
+// ============================================
+
+/**
+ * Hook that loads data only when element is visible
+ */
+export function useVisibilityLoad<T>(
+  fetchFn: () => Promise<T>,
+  options: {
+    rootMargin?: string;
+    threshold?: number;
+    enabled?: boolean;
+  } = {}
+): {
+  ref: React.RefObject<HTMLDivElement>;
+  data: T | null;
+  isLoading: boolean;
+  isVisible: boolean;
+} {
+  const { rootMargin = '100px', threshold = 0.1, enabled = true } = options;
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [data, setData] = useState<T | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fetchedRef = useRef(false);
+
+  // Intersection observer
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !fetchedRef.current) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin, threshold }
+    );
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [enabled, rootMargin, threshold]);
+
+  // Fetch when visible
+  useEffect(() => {
+    if (!isVisible || fetchedRef.current) return;
+    fetchedRef.current = true;
+
+    setIsLoading(true);
+    fetchFn()
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
+  }, [isVisible, fetchFn]);
+
+  return { ref, data, isLoading, isVisible };
+}
+
+// ============================================
+// Idle Callback Hook
+// ============================================
+
+/**
+ * Hook that executes callback during idle time
+ */
+export function useIdleCallback(
+  callback: () => void,
+  options: { timeout?: number } = {}
+): void {
+  const { timeout = 2000 } = options;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let handle: number;
+
+    if ('requestIdleCallback' in window) {
+      handle = (window as any).requestIdleCallback(callback, { timeout });
+      return () => (window as any).cancelIdleCallback(handle);
+    } else {
+      const id = setTimeout(callback, 100);
+      return () => clearTimeout(id);
+    }
+  }, [callback, timeout]);
+}
+
+// ============================================
+// Prefetch on Scroll Hook
+// ============================================
+
+/**
+ * Hook that prefetches items as user scrolls
+ */
+export function useScrollPrefetch(
+  items: { id: number; type: 'movie' | 'tvshow' }[],
+  options: {
+    batchSize?: number;
+    scrollThreshold?: number;
+  } = {}
+): {
+  prefetchedCount: number;
+} {
+  const { batchSize = 5, scrollThreshold = 0.7 } = options;
+  const [prefetchedCount, setPrefetchedCount] = useState(0);
+  const prefetchedRef = useRef(new Set<number>());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleScroll = async () => {
+      const scrollProgress = 
+        (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+
+      if (scrollProgress > scrollThreshold) {
+        const { queuePrefetch } = await import('@/lib/smartPrefetch');
+        
+        // Get items that haven't been prefetched
+        const toPrefetch = items
+          .filter((item) => !prefetchedRef.current.has(item.id))
+          .slice(0, batchSize);
+
+        toPrefetch.forEach((item) => {
+          queuePrefetch(item.id, item.type, 'low');
+          prefetchedRef.current.add(item.id);
+        });
+
+        setPrefetchedCount(prefetchedRef.current.size);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [items, batchSize, scrollThreshold]);
+
+  return { prefetchedCount };
+}
+
