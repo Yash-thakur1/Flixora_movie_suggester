@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Search, Bookmark, Sparkles, Home, Film } from 'lucide-react';
+import { Menu, X, Search, Bookmark, Sparkles, Home, Film, Tv } from 'lucide-react';
 import { SearchBar, MobileSearchOverlay } from './SearchBar';
 import { useUIStore, useWatchlistStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,11 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu, openSearch } = useUIStore();
   const watchlistCount = useWatchlistStore((state) => state.items.length);
+  const pathname = usePathname();
+
+  // Determine active content type from pathname
+  const isMoviesActive = pathname === '/' || pathname.startsWith('/movies') || pathname.startsWith('/movie/');
+  const isTVActive = pathname.startsWith('/tv');
 
   // Handle scroll for background blur
   useEffect(() => {
@@ -34,6 +40,12 @@ export function Header() {
     { href: '/discover', label: 'Discover', icon: Film },
     { href: '/recommendations', label: 'For You', icon: Sparkles },
     { href: '/watchlist', label: 'Watchlist', icon: Bookmark, badge: watchlistCount },
+  ];
+
+  // Content type tabs (Movies vs TV)
+  const contentTabs = [
+    { href: '/', label: 'Movies', icon: Film, isActive: isMoviesActive },
+    { href: '/tv', label: 'TV Series', icon: Tv, isActive: isTVActive },
   ];
 
   return (
@@ -63,12 +75,33 @@ export function Header() {
               <span className="hidden sm:inline">Flixora</span>
             </Link>
 
+            {/* Content Type Tabs (Movies / TV Series) */}
+            <div className="hidden md:flex items-center bg-dark-800/50 rounded-full p-1 ml-4">
+              {contentTabs.map((tab) => (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  className={cn(
+                    'relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
+                    'flex items-center gap-2',
+                    tab.isActive
+                      ? 'bg-primary-600 text-white shadow-glow'
+                      : 'text-gray-400 hover:text-white'
+                  )}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </Link>
+              ))}
+            </div>
+
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map((link) => (
+            <nav className="hidden md:flex items-center gap-1 ml-auto mr-4">
+              {navLinks.slice(1).map((link) => (
                 <Link
                   key={link.href}
-                  href={link.href}
+                  href={isTVActive && link.href === '/discover' ? '/tv/discover' : 
+                        isTVActive && link.href === '/recommendations' ? '/tv/recommendations' : link.href}
                   className={cn(
                     'relative px-4 py-2 rounded-lg text-gray-300',
                     'hover:text-white hover:bg-dark-800 transition-colors',
@@ -87,7 +120,7 @@ export function Header() {
             </nav>
 
             {/* Search (Desktop) */}
-            <div className="hidden lg:block w-96">
+            <div className="hidden lg:block w-80">
               <SearchBar />
             </div>
 
@@ -142,10 +175,32 @@ export function Header() {
             className="fixed top-16 left-0 right-0 z-30 md:hidden bg-dark-950 border-b border-dark-800"
           >
             <nav className="container mx-auto px-4 py-4">
+              {/* Content Type Tabs for Mobile */}
+              <div className="flex items-center bg-dark-800/50 rounded-full p-1 mb-4">
+                {contentTabs.map((tab) => (
+                  <Link
+                    key={tab.href}
+                    href={tab.href}
+                    onClick={closeMobileMenu}
+                    className={cn(
+                      'flex-1 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
+                      'flex items-center justify-center gap-2',
+                      tab.isActive
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    )}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </Link>
+                ))}
+              </div>
+              
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
-                  href={link.href}
+                  href={isTVActive && link.href === '/discover' ? '/tv/discover' : 
+                        isTVActive && link.href === '/recommendations' ? '/tv/recommendations' : link.href}
                   onClick={closeMobileMenu}
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300',

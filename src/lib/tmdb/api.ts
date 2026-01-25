@@ -6,6 +6,8 @@
 import {
   Movie,
   MovieDetails,
+  TVShow,
+  TVShowDetails,
   Credits,
   VideosResponse,
   WatchProvidersResponse,
@@ -380,4 +382,197 @@ export function getMainTrailer(videos: VideosResponse | null | undefined): strin
 
   // Fall back to teaser
   return trailers[0]?.key || null;
+}
+
+// ============================================
+// TV Series Endpoints
+// ============================================
+
+/**
+ * Get trending TV shows
+ */
+export async function getTrendingTVShows(
+  timeWindow: 'day' | 'week' = 'week',
+  page: number = 1
+): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch(`/trending/tv/${timeWindow}`, { page }, { next: { revalidate: 3600 } });
+}
+
+/**
+ * Get popular TV shows
+ */
+export async function getPopularTVShows(page: number = 1): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch('/tv/popular', { page }, { next: { revalidate: 3600 } });
+}
+
+/**
+ * Get top rated TV shows
+ */
+export async function getTopRatedTVShows(page: number = 1): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch('/tv/top_rated', { page }, { next: { revalidate: 3600 } });
+}
+
+/**
+ * Get TV shows airing today
+ */
+export async function getAiringTodayTVShows(page: number = 1): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch('/tv/airing_today', { page }, { next: { revalidate: 3600 } });
+}
+
+/**
+ * Get TV shows on air this week
+ */
+export async function getOnTheAirTVShows(page: number = 1): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch('/tv/on_the_air', { page }, { next: { revalidate: 3600 } });
+}
+
+/**
+ * Get TV show details
+ */
+export async function getTVShowDetails(tvId: number): Promise<TVShowDetails> {
+  return tmdbFetch(`/tv/${tvId}`, {}, { next: { revalidate: 86400 } });
+}
+
+/**
+ * Get TV show credits (cast & crew)
+ */
+export async function getTVShowCredits(tvId: number): Promise<Credits> {
+  return tmdbFetch(`/tv/${tvId}/credits`, {}, { next: { revalidate: 86400 } });
+}
+
+/**
+ * Get TV show videos (trailers, teasers, etc.)
+ */
+export async function getTVShowVideos(tvId: number): Promise<VideosResponse> {
+  return tmdbFetch(`/tv/${tvId}/videos`, {}, { next: { revalidate: 86400 } });
+}
+
+/**
+ * Get similar TV shows
+ */
+export async function getSimilarTVShows(
+  tvId: number,
+  page: number = 1
+): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch(`/tv/${tvId}/similar`, { page }, { next: { revalidate: 86400 } });
+}
+
+/**
+ * Get TV show recommendations
+ */
+export async function getTVShowRecommendations(
+  tvId: number,
+  page: number = 1
+): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch(`/tv/${tvId}/recommendations`, { page }, { next: { revalidate: 86400 } });
+}
+
+/**
+ * Get watch providers for a TV show
+ */
+export async function getTVShowWatchProviders(tvId: number): Promise<WatchProvidersResponse> {
+  return tmdbFetch(`/tv/${tvId}/watch/providers`, {}, { next: { revalidate: 3600 } });
+}
+
+/**
+ * Get all TV genres
+ */
+export async function getTVGenres(): Promise<Genre[]> {
+  const response = await tmdbFetch<GenresResponse>(
+    '/genre/tv/list',
+    {},
+    { next: { revalidate: 604800 } }
+  );
+  return response.genres;
+}
+
+interface DiscoverTVParams {
+  page?: number;
+  with_genres?: string;
+  first_air_date_year?: number;
+  'first_air_date.gte'?: string;
+  'first_air_date.lte'?: string;
+  'vote_average.gte'?: number;
+  'vote_average.lte'?: number;
+  'vote_count.gte'?: number;
+  with_original_language?: string;
+  sort_by?: string;
+  [key: string]: string | number | undefined;
+}
+
+/**
+ * Discover TV shows with filters
+ */
+export async function discoverTVShows(
+  params: DiscoverTVParams = {}
+): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch(
+    '/discover/tv',
+    {
+      ...params,
+      'vote_count.gte': params['vote_count.gte'] ?? 10,
+    },
+    { next: { revalidate: 3600 } }
+  );
+}
+
+/**
+ * Search TV shows by query
+ */
+export async function searchTVShows(
+  query: string,
+  page: number = 1
+): Promise<PaginatedResponse<TVShow>> {
+  return tmdbFetch(
+    '/search/tv',
+    { query, page },
+    { next: { revalidate: 60 } }
+  );
+}
+
+/**
+ * Multi search (movies, TV shows, people)
+ */
+export async function multiSearch(
+  query: string,
+  page: number = 1
+): Promise<PaginatedResponse<Movie | TVShow>> {
+  return tmdbFetch(
+    '/search/multi',
+    { query, page, include_adult: 'false' },
+    { next: { revalidate: 60 } }
+  );
+}
+
+/**
+ * Get TV shows by mood preset
+ */
+export async function getTVShowsByMood(
+  moodGenres: number[],
+  page: number = 1
+): Promise<PaginatedResponse<TVShow>> {
+  if (moodGenres.length === 0) {
+    return getTopRatedTVShows(Math.floor(Math.random() * 10) + 1);
+  }
+
+  return discoverTVShows({
+    with_genres: moodGenres.join('|'),
+    'vote_average.gte': 6,
+    'vote_count.gte': 200,
+    sort_by: 'popularity.desc',
+    page,
+  });
+}
+
+/**
+ * Get combined TV show data (details + credits + videos)
+ */
+export async function getFullTVShowData(tvId: number) {
+  const [details, credits, videos] = await Promise.all([
+    getTVShowDetails(tvId),
+    getTVShowCredits(tvId),
+    getTVShowVideos(tvId),
+  ]);
+
+  return { details, credits, videos };
 }

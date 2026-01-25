@@ -1,0 +1,101 @@
+import { Suspense } from 'react';
+import type { Metadata } from 'next';
+import { discoverTVShows } from '@/lib/tmdb';
+import { TVShowGrid } from '@/components/movies';
+import { MovieGridSkeleton } from '@/components/ui';
+import { TVDiscoverFilters } from './TVDiscoverFilters';
+
+export const metadata: Metadata = {
+  title: 'Discover TV Series',
+  description: 'Browse and discover TV shows by genre, year, rating, and more.',
+};
+
+interface DiscoverPageProps {
+  searchParams: {
+    genres?: string;
+    year?: string;
+    sort?: string;
+    page?: string;
+  };
+}
+
+async function DiscoverContent({ searchParams }: DiscoverPageProps) {
+  const page = parseInt(searchParams.page || '1');
+  const genreIds = searchParams.genres?.split(',').map(Number).filter(Boolean) || [];
+  const year = searchParams.year ? parseInt(searchParams.year) : undefined;
+  const sortBy = (searchParams.sort as any) || 'popularity.desc';
+
+  const shows = await discoverTVShows({
+    page,
+    with_genres: genreIds.length > 0 ? genreIds.join(',') : undefined,
+    first_air_date_year: year,
+    sort_by: sortBy,
+    'vote_count.gte': 50,
+  });
+
+  return (
+    <>
+      <div className="mb-6">
+        <p className="text-gray-400">
+          Found {shows.total_results.toLocaleString()} TV shows
+        </p>
+      </div>
+
+      <TVShowGrid shows={shows.results} />
+
+      {/* Pagination */}
+      {shows.total_pages > 1 && (
+        <div className="mt-8 flex justify-center gap-2">
+          {page > 1 && (
+            <a
+              href={`/tv/discover?${new URLSearchParams({
+                ...searchParams,
+                page: String(page - 1),
+              })}`}
+              className="px-4 py-2 bg-dark-800 text-white rounded-lg hover:bg-dark-700 transition-colors"
+            >
+              Previous
+            </a>
+          )}
+          <span className="px-4 py-2 text-gray-400">
+            Page {page} of {Math.min(shows.total_pages, 500)}
+          </span>
+          {page < Math.min(shows.total_pages, 500) && (
+            <a
+              href={`/tv/discover?${new URLSearchParams({
+                ...searchParams,
+                page: String(page + 1),
+              })}`}
+              className="px-4 py-2 bg-dark-800 text-white rounded-lg hover:bg-dark-700 transition-colors"
+            >
+              Next
+            </a>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function TVDiscoverPage({ searchParams }: DiscoverPageProps) {
+  return (
+    <div className="container mx-auto px-4 md:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
+          📺 Discover TV Series
+        </h1>
+        <p className="text-gray-400">
+          Browse through thousands of TV shows and find your next binge
+        </p>
+      </div>
+
+      {/* Filters */}
+      <TVDiscoverFilters />
+
+      {/* Results */}
+      <Suspense fallback={<MovieGridSkeleton />}>
+        <DiscoverContent searchParams={searchParams} />
+      </Suspense>
+    </div>
+  );
+}

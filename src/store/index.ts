@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Movie, UserPreferences, Mood, Era, RatingPreference, DurationPreference } from '@/types/movie';
+import { Movie, TVShow, UserPreferences, Mood, Era, RatingPreference, DurationPreference } from '@/types/movie';
 
 // ============================================
 // Watchlist Store
@@ -13,9 +13,13 @@ import { Movie, UserPreferences, Mood, Era, RatingPreference, DurationPreference
 
 interface WatchlistState {
   items: Movie[];
+  tvItems: TVShow[];
   addToWatchlist: (movie: Movie) => void;
   removeFromWatchlist: (movieId: number) => void;
   isInWatchlist: (movieId: number) => boolean;
+  addTVShowToWatchlist: (show: TVShow) => void;
+  removeTVShowFromWatchlist: (showId: number) => void;
+  isTVShowInWatchlist: (showId: number) => boolean;
   clearWatchlist: () => void;
 }
 
@@ -23,6 +27,7 @@ export const useWatchlistStore = create<WatchlistState>()(
   persist(
     (set, get) => ({
       items: [],
+      tvItems: [],
       
       addToWatchlist: (movie) => {
         const exists = get().items.some((m) => m.id === movie.id);
@@ -41,7 +46,24 @@ export const useWatchlistStore = create<WatchlistState>()(
         return get().items.some((m) => m.id === movieId);
       },
       
-      clearWatchlist: () => set({ items: [] }),
+      addTVShowToWatchlist: (show) => {
+        const exists = get().tvItems.some((s) => s.id === show.id);
+        if (!exists) {
+          set((state) => ({ tvItems: [...state.tvItems, show] }));
+        }
+      },
+      
+      removeTVShowFromWatchlist: (showId) => {
+        set((state) => ({
+          tvItems: state.tvItems.filter((s) => s.id !== showId),
+        }));
+      },
+      
+      isTVShowInWatchlist: (showId) => {
+        return get().tvItems.some((s) => s.id === showId);
+      },
+      
+      clearWatchlist: () => set({ items: [], tvItems: [] }),
     }),
     {
       name: 'flixora-watchlist',

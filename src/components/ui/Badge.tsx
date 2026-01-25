@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'genre' | 'rating' | 'outline';
+  variant?: 'default' | 'genre' | 'rating' | 'outline' | 'primary' | 'success' | 'secondary';
   color?: string;
   className?: string;
 }
@@ -24,6 +24,9 @@ export function Badge({
     genre: 'bg-dark-800/80 backdrop-blur-sm text-gray-200 border border-dark-600',
     rating: 'bg-gold-500/20 text-gold-400 border border-gold-500/50',
     outline: 'border border-dark-500 text-gray-400',
+    primary: 'bg-primary-600/20 text-primary-400 border border-primary-500/50',
+    success: 'bg-green-500/20 text-green-400 border border-green-500/50',
+    secondary: 'bg-gray-500/20 text-gray-400 border border-gray-500/50',
   };
 
   return (

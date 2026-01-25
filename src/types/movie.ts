@@ -19,6 +19,88 @@ export interface Movie {
   video: boolean;
 }
 
+// ============================================
+// TV Series Types
+// ============================================
+
+export interface TVShow {
+  id: number;
+  name: string;
+  original_name: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  first_air_date: string;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+  genre_ids: number[];
+  origin_country: string[];
+  original_language: string;
+}
+
+export interface TVShowDetails extends Omit<TVShow, 'genre_ids'> {
+  genres: Genre[];
+  episode_run_time: number[];
+  status: string;
+  tagline: string;
+  homepage: string;
+  number_of_episodes: number;
+  number_of_seasons: number;
+  seasons: Season[];
+  networks: Network[];
+  created_by: Creator[];
+  last_air_date: string;
+  in_production: boolean;
+  type: string;
+}
+
+export interface Season {
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  season_number: number;
+  episode_count: number;
+  air_date: string;
+}
+
+export interface Network {
+  id: number;
+  name: string;
+  logo_path: string | null;
+  origin_country: string;
+}
+
+export interface Creator {
+  id: number;
+  name: string;
+  profile_path: string | null;
+}
+
+// Union type for media items
+export type MediaItem = Movie | TVShow;
+export type MediaType = 'movie' | 'tv';
+
+// Helper to check media type
+export function isMovie(item: MediaItem): item is Movie {
+  return 'title' in item;
+}
+
+export function isTVShow(item: MediaItem): item is TVShow {
+  return 'name' in item && !('title' in item);
+}
+
+// Get title for any media type
+export function getMediaTitle(item: MediaItem): string {
+  return isMovie(item) ? item.title : item.name;
+}
+
+// Get release date for any media type
+export function getMediaDate(item: MediaItem): string {
+  return isMovie(item) ? item.release_date : item.first_air_date;
+}
+
 export interface MovieDetails extends Omit<Movie, 'genre_ids'> {
   genres: Genre[];
   runtime: number;

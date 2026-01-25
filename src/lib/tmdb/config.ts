@@ -141,6 +141,86 @@ export const ERA_PRESETS = {
   classic: { from: 1900, to: 1989 },
 } as const;
 
+// TV Genre mappings
+export const TV_GENRES = [
+  { id: 10759, name: 'Action & Adventure', icon: '💥', color: '#ef4444' },
+  { id: 16, name: 'Animation', icon: '🎨', color: '#eab308' },
+  { id: 35, name: 'Comedy', icon: '😂', color: '#22c55e' },
+  { id: 80, name: 'Crime', icon: '🔪', color: '#6b7280' },
+  { id: 99, name: 'Documentary', icon: '📹', color: '#3b82f6' },
+  { id: 18, name: 'Drama', icon: '🎭', color: '#8b5cf6' },
+  { id: 10751, name: 'Family', icon: '👨‍👩‍👧‍👦', color: '#ec4899' },
+  { id: 10762, name: 'Kids', icon: '🧒', color: '#f97316' },
+  { id: 9648, name: 'Mystery', icon: '🔍', color: '#4b5563' },
+  { id: 10763, name: 'News', icon: '📰', color: '#64748b' },
+  { id: 10764, name: 'Reality', icon: '📺', color: '#06b6d4' },
+  { id: 10765, name: 'Sci-Fi & Fantasy', icon: '🚀', color: '#0ea5e9' },
+  { id: 10766, name: 'Soap', icon: '💕', color: '#f472b6' },
+  { id: 10767, name: 'Talk', icon: '🎤', color: '#a855f7' },
+  { id: 10768, name: 'War & Politics', icon: '⚔️', color: '#57534e' },
+  { id: 37, name: 'Western', icon: '🤠', color: '#ca8a04' },
+] as const;
+
+// Quick moods for TV Shows
+export const TV_QUICK_MOODS = [
+  {
+    id: 'binge',
+    label: 'Binge-worthy',
+    icon: '📺',
+    genres: [18, 80, 9648],
+    description: 'Addictive series you can\'t stop watching',
+  },
+  {
+    id: 'action',
+    label: 'Action-packed',
+    icon: '💪',
+    genres: [10759, 10765],
+    description: 'Thrilling adventures and excitement',
+  },
+  {
+    id: 'laugh',
+    label: 'Make me laugh',
+    icon: '😂',
+    genres: [35],
+    description: 'Comedies to brighten your day',
+  },
+  {
+    id: 'drama',
+    label: 'Deep dramas',
+    icon: '🎭',
+    genres: [18],
+    description: 'Emotional and gripping stories',
+  },
+  {
+    id: 'mystery',
+    label: 'Mysteries',
+    icon: '🔍',
+    genres: [9648, 80],
+    description: 'Puzzles and whodunits',
+  },
+  {
+    id: 'scifi',
+    label: 'Sci-Fi & Fantasy',
+    icon: '🚀',
+    genres: [10765],
+    description: 'Otherworldly adventures',
+  },
+  {
+    id: 'reality',
+    label: 'Reality TV',
+    icon: '🎬',
+    genres: [10764],
+    description: 'Unscripted entertainment',
+  },
+  {
+    id: 'surprise',
+    label: 'Surprise me',
+    icon: '🎲',
+    genres: [],
+    description: 'Random picks from top rated shows',
+  },
+] as const;
+
 // Sort options for movie lists
 export const SORT_OPTIONS = [
   { value: 'popularity.desc', label: 'Most Popular' },
@@ -148,6 +228,14 @@ export const SORT_OPTIONS = [
   { value: 'release_date.desc', label: 'Latest' },
   { value: 'release_date.asc', label: 'Oldest' },
   { value: 'revenue.desc', label: 'Box Office' },
+] as const;
+
+// Sort options for TV shows
+export const TV_SORT_OPTIONS = [
+  { value: 'popularity.desc', label: 'Most Popular' },
+  { value: 'vote_average.desc', label: 'Highest Rated' },
+  { value: 'first_air_date.desc', label: 'Latest' },
+  { value: 'first_air_date.asc', label: 'Oldest' },
 ] as const;
 
 /**
@@ -176,10 +264,25 @@ export function getGenreName(genreId: number): string {
 }
 
 /**
+ * Get TV genre name by ID
+ */
+export function getTVGenreName(genreId: number): string {
+  return TV_GENRES.find((g) => g.id === genreId)?.name || 
+         GENRES.find((g) => g.id === genreId)?.name || 'Unknown';
+}
+
+/**
  * Get genre by ID with full metadata
  */
 export function getGenreById(genreId: number) {
   return GENRES.find((g) => g.id === genreId);
+}
+
+/**
+ * Get TV genre by ID with full metadata
+ */
+export function getTVGenreById(genreId: number) {
+  return TV_GENRES.find((g) => g.id === genreId) || GENRES.find((g) => g.id === genreId);
 }
 
 /**
