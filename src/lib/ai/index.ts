@@ -64,16 +64,21 @@ export {
 } from './ambiguityDetection';
 export type { AmbiguityAnalysis, ClarifyingQuestion, QuickOption } from './ambiguityDetection';
 
-// Reference Movie Analysis (Cultural Context)
+// Reference Movie Analysis (Cultural Context) - Enhanced Strict Matching
 export {
   analyzeReferenceFromQuery,
   findReferenceMovie,
   analyzeReferenceMovie,
   generateCulturalFilters,
-  extractReferenceTitle
+  extractReferenceTitle,
+  generateSimilarMovieIntro,
+  generateMatchJustification,
+  generateMatchExplanation
 } from './referenceMovieAnalyzer';
 export type { 
   ReferenceMovieInfo, 
   CinemaIndustry, 
-  CulturalFilterRules 
+  CulturalFilterRules,
+  CinematicProfile,
+  ThematicElement
 } from './referenceMovieAnalyzer';

@@ -364,8 +364,8 @@ function generateTopRatedQueries(intent: ParsedIntent, filterRules?: FilterRules
 }
 
 /**
- * Generate similar content queries
- * Enhanced to handle cultural context for "movies like X" queries
+ * Generate similar content queries with STRICT cultural matching
+ * Treats the reference movie as a strict template, not loose inspiration
  */
 function generateSimilarQueries(
   intent: ParsedIntent, 
@@ -380,6 +380,12 @@ function generateSimilarQueries(
   // Get genres to avoid if on cooldown
   const excludeGenres = getCooldownGenres(filterRules);
   
+  // STRICT MODE: When we have cultural context, apply hard filtering
+  if (culturalFilters) {
+    return generateStrictCulturalQueries(intent, mediaTypes, excludeGenres, culturalFilters);
+  }
+  
+  // Fallback to standard similar queries
   for (const mediaType of mediaTypes) {
     const query: MovieQuery = {
       type: 'discover',
@@ -390,58 +396,101 @@ function generateSimilarQueries(
       sortBy: 'popularity.desc',
       page: 1,
       limit: 8,
-      source: culturalFilters ? 'cultural' : 'similar',
-      fetchMultiplier: 3 // Fetch more for cultural filtering
+      source: 'similar',
+      fetchMultiplier: 3
     };
-    
-    // Apply cultural filters if available
-    if (culturalFilters) {
-      query.withOriginalLanguage = culturalFilters.withOriginalLanguage;
-      query.culturalContext = culturalFilters;
-      
-      // For epic/mass-hero movies, prefer action genres
-      if (culturalFilters.preferEpicScale || culturalFilters.preferMassHeroNarrative) {
-        if (!query.genres || query.genres.length === 0) {
-          query.genres = [28, 12]; // Action, Adventure
-        }
-      }
-    }
     
     queries.push(query);
   }
   
-  // If we have cultural context, add a secondary query for Hindi-dubbed versions
-  if (culturalFilters && culturalFilters.preferredLanguages.includes('hi') && 
-      culturalFilters.withOriginalLanguage !== 'hi') {
-    // Add Hindi language query for dubbed content
-    for (const mediaType of mediaTypes) {
-      queries.push({
-        type: 'discover',
-        mediaType,
-        genres: intent.genres.length > 0 ? intent.genres : [28, 12],
-        withOriginalLanguage: 'hi',
-        minRating: 6.5,
-        sortBy: 'popularity.desc',
-        page: 1,
-        limit: 4,
-        source: 'cultural',
-        fetchMultiplier: 2
-      });
+  return {
+    queries,
+    responseContext: {
+      intro: 'Based on what you mentioned, you might enjoy:',
+      explanation: 'These have a similar vibe and style!',
+      followUp: 'Tell me more about what you liked and I can find even better matches!'
+    }
+  };
+}
+
+/**
+ * Generate STRICT cultural queries based on reference movie profile
+ * This applies hard filtering to match the reference movie's DNA
+ */
+function generateStrictCulturalQueries(
+  intent: ParsedIntent,
+  mediaTypes: ('movie' | 'tv')[],
+  excludeGenres: number[],
+  culturalFilters: CulturalFilterRules
+): QueryResult {
+  const queries: MovieQuery[] = [];
+  const profile = culturalFilters.referenceProfile;
+  
+  // Determine genres based on reference profile
+  let targetGenres: number[] = intent.genres.length > 0 ? intent.genres : [];
+  
+  // For mass-appeal blockbusters, prioritize action/adventure genres
+  if (profile && profile.massAppealScore >= 80) {
+    if (profile.storytellingStyle === 'action-spectacle' || 
+        profile.storytellingStyle === 'commercial-masala') {
+      targetGenres = [28, 12]; // Action, Adventure
     }
   }
   
-  // Generate culturally-aware response
-  const intro = culturalFilters 
-    ? `If you liked **${culturalFilters.referenceTitle}**, you might enjoy these ${culturalFilters.industryDescription} films:`
-    : 'Based on what you mentioned, you might enjoy:';
+  // Add drama if the reference has emotional elements
+  if (profile && profile.hasEmotionalDrama && !targetGenres.includes(18)) {
+    targetGenres.push(18); // Drama
+  }
   
-  const explanation = culturalFilters
-    ? `These films share a similar epic scale, storytelling style, and cultural appeal.`
-    : 'These have a similar vibe and style!';
+  // Primary query: STRICT language match (original language only)
+  for (const mediaType of mediaTypes) {
+    queries.push({
+      type: 'discover',
+      mediaType,
+      genres: targetGenres.length > 0 ? targetGenres : undefined,
+      excludeGenres: excludeGenres.length > 0 ? excludeGenres : undefined,
+      minRating: 6.0, // Slightly lower to include more culturally relevant content
+      sortBy: 'popularity.desc',
+      page: 1,
+      limit: 10,
+      source: 'cultural',
+      fetchMultiplier: 4, // Fetch more for strict filtering
+      withOriginalLanguage: culturalFilters.withOriginalLanguage,
+      withoutOriginalLanguage: culturalFilters.withoutOriginalLanguage,
+      culturalContext: culturalFilters
+    });
+  }
   
-  const followUp = culturalFilters
-    ? 'Want me to include Hollywood movies too, or find more from this industry?'
-    : 'Tell me more about what you liked and I can find even better matches!';
+  // Secondary query: Related Indian languages (for Indian cinema)
+  if (culturalFilters.strictLanguageMatch && culturalFilters.preferredLanguages.length > 1) {
+    // Query for each preferred language
+    const additionalLanguages = culturalFilters.preferredLanguages
+      .filter(lang => lang !== culturalFilters.withOriginalLanguage)
+      .slice(0, 2); // Top 2 additional languages
+    
+    for (const lang of additionalLanguages) {
+      for (const mediaType of mediaTypes) {
+        queries.push({
+          type: 'discover',
+          mediaType,
+          genres: targetGenres.length > 0 ? targetGenres : [28, 12],
+          minRating: 6.5,
+          sortBy: 'popularity.desc',
+          page: 1,
+          limit: 4,
+          source: 'cultural',
+          fetchMultiplier: 2,
+          withOriginalLanguage: lang,
+          culturalContext: culturalFilters
+        });
+      }
+    }
+  }
+  
+  // Generate detailed response text
+  const intro = generateStrictIntro(culturalFilters);
+  const explanation = generateStrictExplanation(culturalFilters);
+  const followUp = 'Want me to expand the search to include other languages or Hollywood films?';
   
   return {
     queries,
@@ -452,6 +501,67 @@ function generateSimilarQueries(
       followUp
     }
   };
+}
+
+/**
+ * Generate intro text for strict cultural matching
+ */
+function generateStrictIntro(filters: CulturalFilterRules): string {
+  const profile = filters.referenceProfile;
+  
+  if (!profile) {
+    return `Since you loved **${filters.referenceTitle}**, here are similar ${filters.industryDescription} films:`;
+  }
+  
+  // Build a detailed intro based on the profile
+  if (profile.massAppealScore >= 90 && profile.narrativeScale === 'epic') {
+    return `Since you loved **${filters.referenceTitle}**, I've found these ${filters.industryDescription} blockbusters with the same epic scale, mass-hero appeal, and grand storytelling:`;
+  }
+  
+  if (profile.hasHeroCentricElevation && profile.hasPowerFantasy) {
+    return `Since you loved **${filters.referenceTitle}**, here are ${filters.industryDescription} films with similar hero-centric power fantasy narratives:`;
+  }
+  
+  if (profile.storytellingStyle === 'emotional-drama') {
+    return `Since you loved **${filters.referenceTitle}**, these ${filters.industryDescription} films share its emotional depth and storytelling style:`;
+  }
+  
+  return `Since you loved **${filters.referenceTitle}**, here are similar ${filters.industryDescription} films:`;
+}
+
+/**
+ * Generate explanation for strict cultural matching
+ */
+function generateStrictExplanation(filters: CulturalFilterRules): string {
+  const profile = filters.referenceProfile;
+  const parts: string[] = [];
+  
+  if (!profile) {
+    return `These films are from the same ${filters.industryDescription} with similar appeal.`;
+  }
+  
+  // Industry match
+  parts.push(`All from ${filters.industryDescription}`);
+  
+  // Scale/style match
+  if (profile.narrativeScale === 'epic') {
+    parts.push('epic-scale storytelling');
+  }
+  if (profile.hasHeroCentricElevation) {
+    parts.push('hero-centric elevation');
+  }
+  if (profile.storytellingStyle === 'commercial-masala') {
+    parts.push('commercial masala entertainment');
+  } else if (profile.storytellingStyle === 'action-spectacle') {
+    parts.push('action spectacle');
+  }
+  
+  // Note about exclusions
+  if (filters.excludeLanguages.includes('en')) {
+    parts.push('(excluding English-language films)');
+  }
+  
+  return parts.join(' • ');
 }
 
 /**
