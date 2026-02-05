@@ -1,8 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+/**
+ * Tab Verify API Route
+ * 
+ * Verifies a Firebase ID token from Authorization header.
+ */
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,29 +19,21 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.substring(7);
+    const adminAuth = getAdminAuth();
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    // Verify the Firebase ID token
+    const decodedToken = await adminAuth.verifyIdToken(token);
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 401 }
-      );
-    }
+    // Get full user record
+    const userRecord = await adminAuth.getUser(decodedToken.uid);
 
     return NextResponse.json({
       valid: true,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
+        id: userRecord.uid,
+        name: userRecord.displayName || null,
+        email: userRecord.email || null,
+        image: userRecord.photoURL || null,
       },
     });
   } catch (error) {

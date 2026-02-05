@@ -1,55 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { getTabAuthUser } from '@/lib/tab-auth';
-import { prisma } from '@/lib/prisma';
-
-// Helper to get user ID from either tab auth or session auth
-async function getUserId(request: NextRequest): Promise<string | null> {
-  // First, try tab-based auth (Authorization header)
-  const tabUser = await getTabAuthUser(request);
-  if (tabUser?.id) {
-    return tabUser.id;
-  }
-  
-  // Fall back to session-based auth (cookies)
-  const session = await auth();
-  return session?.user?.id || null;
-}
+import { getFirebaseAuthUser } from '@/lib/firebase-auth-helper';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 // GET - Fetch user's preferences
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getUserId(request);
+    const user = await getFirebaseAuthUser(request);
     
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let preferences = await prisma.userPreferences.findUnique({
-      where: { userId },
-    });
+    const db = getAdminDb();
+    const docRef = db.collection('users').doc(user.id).collection('data').doc('preferences');
+    const docSnap = await docRef.get();
 
-    // Create default preferences if they don't exist
-    if (!preferences) {
-      preferences = await prisma.userPreferences.create({
-        data: { userId },
+    if (!docSnap.exists) {
+      // Return default preferences
+      return NextResponse.json({
+        preferences: {
+          favoriteGenres: [],
+          preferredMood: null,
+          preferredEra: null,
+          preferredLanguages: [],
+          ratingPreference: 'any',
+        },
       });
     }
 
-    // Parse comma-separated values into arrays
-    const parsed = {
-      favoriteGenres: preferences.favoriteGenres
-        ? preferences.favoriteGenres.split(',').map(Number)
-        : [],
-      preferredMood: preferences.preferredMood,
-      preferredEra: preferences.preferredEra,
-      preferredLanguages: preferences.preferredLanguages
-        ? preferences.preferredLanguages.split(',')
-        : [],
-      ratingPreference: preferences.ratingPreference || 'any',
-    };
-
-    return NextResponse.json({ preferences: parsed });
+    const data = docSnap.data()!;
+    return NextResponse.json({
+      preferences: {
+        favoriteGenres: data.favoriteGenres || [],
+        preferredMood: data.preferredMood || null,
+        preferredEra: data.preferredEra || null,
+        preferredLanguages: data.preferredLanguages || [],
+        ratingPreference: data.ratingPreference || 'any',
+      },
+    });
   } catch (error) {
     console.error('Error fetching preferences:', error);
     return NextResponse.json(
@@ -62,9 +50,9 @@ export async function GET(request: NextRequest) {
 // PUT - Update user's preferences
 export async function PUT(request: NextRequest) {
   try {
-    const userId = await getUserId(request);
+    const user = await getFirebaseAuthUser(request);
     
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -77,43 +65,21 @@ export async function PUT(request: NextRequest) {
       ratingPreference,
     } = body;
 
-    // Convert arrays to comma-separated strings
-    const data: Record<string, string | null> = {};
-    
-    if (favoriteGenres !== undefined) {
-      data.favoriteGenres = Array.isArray(favoriteGenres)
-        ? favoriteGenres.join(',')
-        : null;
-    }
-    
-    if (preferredMood !== undefined) {
-      data.preferredMood = preferredMood;
-    }
-    
-    if (preferredEra !== undefined) {
-      data.preferredEra = preferredEra;
-    }
-    
-    if (preferredLanguages !== undefined) {
-      data.preferredLanguages = Array.isArray(preferredLanguages)
-        ? preferredLanguages.join(',')
-        : null;
-    }
-    
-    if (ratingPreference !== undefined) {
-      data.ratingPreference = ratingPreference;
-    }
+    const data: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
 
-    const preferences = await prisma.userPreferences.upsert({
-      where: { userId },
-      update: data,
-      create: {
-        userId,
-        ...data,
-      },
-    });
+    if (favoriteGenres !== undefined) data.favoriteGenres = favoriteGenres;
+    if (preferredMood !== undefined) data.preferredMood = preferredMood;
+    if (preferredEra !== undefined) data.preferredEra = preferredEra;
+    if (preferredLanguages !== undefined) data.preferredLanguages = preferredLanguages;
+    if (ratingPreference !== undefined) data.ratingPreference = ratingPreference;
 
-    return NextResponse.json({ preferences });
+    const db = getAdminDb();
+    const docRef = db.collection('users').doc(user.id).collection('data').doc('preferences');
+    await docRef.set(data, { merge: true });
+
+    return NextResponse.json({ preferences: data });
   } catch (error) {
     console.error('Error updating preferences:', error);
     return NextResponse.json(

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,50 +14,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    const adminAuth = getAdminAuth();
 
-    if (existingUser) {
+    // Check if user already exists
+    try {
+      await adminAuth.getUserByEmail(email);
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
       );
+    } catch {
+      // User doesn't exist, proceed with creation
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name: name || email.split('@')[0],
-        password: hashedPassword,
-      },
-    });
-
-    // Create default preferences
-    await prisma.userPreferences.create({
-      data: {
-        userId: user.id,
-      },
+    // Create user in Firebase Auth
+    const userRecord = await adminAuth.createUser({
+      email,
+      password,
+      displayName: name || email.split('@')[0],
     });
 
     return NextResponse.json(
       {
         message: 'User created successfully',
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
+          id: userRecord.uid,
+          email: userRecord.email,
+          name: userRecord.displayName,
         },
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Registration error:', error);
+
+    if (error?.code === 'auth/email-already-exists') {
+      return NextResponse.json(
+        { error: 'User with this email already exists' },
+        { status: 409 }
+      );
+    }
+    if (error?.code === 'auth/weak-password') {
+      return NextResponse.json(
+        { error: 'Password is too weak. Must be at least 6 characters.' },
+        { status: 400 }
+      );
+    }
+    if (error?.code === 'auth/invalid-email') {
+      return NextResponse.json(
+        { error: 'Invalid email address' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'An error occurred during registration' },
       { status: 500 }

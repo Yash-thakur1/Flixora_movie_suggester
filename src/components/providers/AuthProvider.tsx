@@ -2,6 +2,14 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { clearUserCache } from '@/lib/cache';
+import {
+  onAuthStateChange,
+  signInWithEmail,
+  signUpWithEmail,
+  signInWithGoogle,
+  firebaseSignOut,
+  getIdToken,
+} from '@/lib/firebase';
 
 interface AuthUser {
   id: string;
@@ -26,67 +34,27 @@ interface AuthContextType extends AuthSession {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Use localStorage for persistence across browser sessions
+// Keep localStorage in sync so the Zustand store can read the token
 const AUTH_STORAGE_KEY = 'flixora-auth-session';
-const TOKEN_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-interface StoredSession {
-  user: AuthUser;
-  token: string;
-  expiresAt: number;
-}
-
-/**
- * Get stored session from localStorage
- */
-function getStoredSession(): StoredSession | null {
-  if (typeof window === 'undefined') return null;
-  
-  try {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!stored) return null;
-    
-    const session: StoredSession = JSON.parse(stored);
-    
-    // Check if session is expired (7 days)
-    if (Date.now() > session.expiresAt) {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      return null;
-    }
-    
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Save session to localStorage
- */
-function saveStoredSession(user: AuthUser, token: string): void {
+function syncToLocalStorage(user: AuthUser, token: string) {
   if (typeof window === 'undefined') return;
-  
-  const session: StoredSession = {
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
     user,
     token,
-    expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days
-  };
-  
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000),
+  }));
 }
 
-/**
- * Clear session from localStorage
- */
-function clearStoredSession(): void {
+function clearLocalStorage() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
 /**
- * Persistent Authentication Provider
- * - Uses localStorage for persistent sessions across browser restarts
- * - Automatically refreshes tokens
+ * Firebase-based Authentication Provider
+ * - Uses Firebase Auth for login/signup/Google
+ * - Automatically refreshes tokens via onAuthStateChanged
  * - Clears all user cache on logout
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -97,193 +65,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: false,
   });
 
-  // Verify token function
-  const verifyToken = useCallback(async (token: string, onInvalid: () => void) => {
-    try {
-      const res = await fetch('/api/auth/tab-verify', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        onInvalid();
-      }
-    } catch {
-      console.warn('[Auth] Token verification failed, will retry');
-    }
-  }, []);
-
-  // Load session from localStorage on mount
+  // Listen to Firebase auth state changes
   useEffect(() => {
-    const stored = getStoredSession();
-    
-    if (stored) {
-      setSession({
-        user: stored.user,
-        token: stored.token,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-      
-      // Verify token is still valid in background
-      verifyToken(stored.token, () => {
-        clearStoredSession();
+    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        const token = await getIdToken();
+        const authUser: AuthUser = {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || null,
+          email: firebaseUser.email || null,
+          image: firebaseUser.photoURL || null,
+        };
+        
+        if (token) {
+          syncToLocalStorage(authUser, token);
+        }
+        
+        setSession({
+          user: authUser,
+          token,
+          isLoading: false,
+          isAuthenticated: true,
+        });
+      } else {
+        clearLocalStorage();
         setSession({
           user: null,
           token: null,
           isLoading: false,
           isAuthenticated: false,
         });
-      });
-    } else {
-      setSession((s) => ({ ...s, isLoading: false }));
-    }
-  }, [verifyToken]);
-
-  // Set up token refresh interval
-  useEffect(() => {
-    if (!session.token) return;
-    
-    const interval = setInterval(() => {
-      verifyToken(session.token!, () => {
-        clearStoredSession();
-        if (session.user?.id) {
-          clearUserCache(session.user.id);
-        }
-        setSession({
-          user: null,
-          token: null,
-          isLoading: false,
-          isAuthenticated: false,
-        });
-      });
-    }, TOKEN_REFRESH_INTERVAL);
-    
-    return () => clearInterval(interval);
-  }, [session.token, session.user?.id, verifyToken]);
-
-  /**
-   * Save session and update state
-   * Also handles migrating guest learning preferences to the authenticated user
-   */
-  const saveSession = useCallback(async (user: AuthUser | null, token: string | null) => {
-    if (user && token) {
-      // Capture guest session ID before it's cleared
-      const guestSessionId = sessionStorage.getItem('flixora-guest-session-id');
-      
-      saveStoredSession(user, token);
-      setSession({
-        user,
-        token,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-      
-      // Migrate guest preferences to authenticated user
-      if (guestSessionId) {
-        try {
-          const { migrateGuestToUser } = await import('@/lib/ai/preferenceLearning');
-          await migrateGuestToUser(guestSessionId);
-          // Clear guest session ID after migration
-          sessionStorage.removeItem('flixora-guest-session-id');
-        } catch (e) {
-          console.error('[Auth] Failed to migrate guest preferences:', e);
-        }
       }
-    } else {
-      clearStoredSession();
-      setSession({
-        user: null,
-        token: null,
-        isLoading: false,
-        isAuthenticated: false,
-      });
-    }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   /**
-   * Login with email/password
+   * Login with email/password via Firebase Auth
    */
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/auth/tab-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
+      const { user, error } = await signInWithEmail(email, password);
+      if (error || !user) {
         return false;
       }
-
-      saveSession(data.user, data.token);
+      // onAuthStateChanged will handle session update
       return true;
     } catch (error) {
       console.error('[Auth] Login failed:', error);
       return false;
     }
-  }, [saveSession]);
+  }, []);
 
   /**
-   * Login with Google (opens popup)
+   * Login with Google via Firebase Auth popup
    */
-  const loginWithGoogle = useCallback(async (callbackUrl: string = '/') => {
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      '/api/auth/google-popup',
-      'google-login',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-
-    // Listen for message from popup
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data.type === 'google-auth-success') {
-        saveSession(event.data.user, event.data.token);
-        popup?.close();
-      }
-      window.removeEventListener('message', handleMessage);
-    };
-
-    window.addEventListener('message', handleMessage);
-  }, [saveSession]);
+  const loginWithGoogle = useCallback(async (_callbackUrl: string = '/') => {
+    try {
+      await signInWithGoogle();
+      // onAuthStateChanged will handle session update
+    } catch (error) {
+      console.error('[Auth] Google login failed:', error);
+    }
+  }, []);
 
   /**
    * Handle logout - clear session and all user cache
    */
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     const userId = session.user?.id;
     
-    // Clear session
-    saveSession(null, null);
+    try {
+      await firebaseSignOut();
+    } catch (e) {
+      console.error('[Auth] Signout error:', e);
+    }
+    
+    clearLocalStorage();
     
     // Clear all user cache to prevent data leakage
     if (userId) {
       clearUserCache(userId);
-      
-      // Clear user-specific learning data from localStorage
-      // Note: Guest session data is already isolated and will be fresh on new session
       try {
         const userLearningKey = `flixora-preference-learning-user-${userId}`;
         localStorage.removeItem(userLearningKey);
       } catch {}
     }
-  }, [session.user?.id, saveSession]);
+  }, [session.user?.id]);
 
   /**
-   * Refresh session - verify token and update state
+   * Refresh session - get a fresh Firebase ID token
    */
   const refreshSession = useCallback(async () => {
-    if (!session.token) return;
-    await verifyToken(session.token, () => {
-      handleLogout();
-    });
-  }, [session.token, verifyToken, handleLogout]);
+    try {
+      const token = await getIdToken();
+      if (token) {
+        setSession(prev => ({ ...prev, token }));
+      }
+    } catch {
+      console.warn('[Auth] Token refresh failed');
+    }
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -312,27 +195,29 @@ export function useAuth() {
 }
 
 /**
- * Helper to get auth headers for API calls
+ * Helper to get auth headers for API calls (uses Firebase ID token from localStorage)
  */
 export function getAuthHeaders(): HeadersInit {
   if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
   
-  const stored = getStoredSession();
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
   
-  if (stored?.token) {
-    headers['Authorization'] = `Bearer ${stored.token}`;
-  }
+  try {
+    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (stored) {
+      const session = JSON.parse(stored);
+      if (session?.token) {
+        headers['Authorization'] = `Bearer ${session.token}`;
+      }
+    }
+  } catch {}
   
   return headers;
 }
 
 /**
- * Helper to get current user ID (for cache keys)
+ * Helper to get current user ID
  */
 export function getCurrentUserId(): string | null {
-  if (typeof window === 'undefined') return null;
-  
-  const stored = getStoredSession();
-  return stored?.user?.id || null;
+  return null; // Firebase manages this internally
 }

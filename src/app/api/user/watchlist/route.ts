@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { getTabAuthUser } from '@/lib/tab-auth';
-import { prisma } from '@/lib/prisma';
-
-// Helper to get user ID from either tab auth or session auth
-async function getUserId(request: NextRequest): Promise<string | null> {
-  // First, try tab-based auth (Authorization header)
-  const tabUser = await getTabAuthUser(request);
-  if (tabUser?.id) {
-    return tabUser.id;
-  }
-  
-  // Fall back to session-based auth (cookies)
-  const session = await auth();
-  return session?.user?.id || null;
-}
+import { getFirebaseAuthUser } from '@/lib/firebase-auth-helper';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 // GET - Fetch user's watchlist
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getUserId(request);
+    const user = await getFirebaseAuthUser(request);
     
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const watchlist = await prisma.watchlistItem.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    const db = getAdminDb();
+    const snapshot = await db
+      .collection('users')
+      .doc(user.id)
+      .collection('watchlist')
+      .orderBy('addedAt', 'desc')
+      .get();
+
+    const watchlist = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
     return NextResponse.json({ watchlist });
   } catch (error) {
@@ -43,9 +37,9 @@ export async function GET(request: NextRequest) {
 // POST - Add item to watchlist
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getUserId(request);
+    const user = await getFirebaseAuthUser(request);
     
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -59,37 +53,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if already in watchlist
-    const existing = await prisma.watchlistItem.findUnique({
-      where: {
-        userId_mediaId_mediaType: {
-          userId,
-          mediaId,
-          mediaType,
-        },
-      },
-    });
+    const db = getAdminDb();
+    const docId = `${mediaType}_${mediaId}`;
+    const docRef = db.collection('users').doc(user.id).collection('watchlist').doc(docId);
 
-    if (existing) {
+    // Check if already in watchlist
+    const existing = await docRef.get();
+    if (existing.exists) {
       return NextResponse.json(
         { error: 'Item already in watchlist' },
         { status: 409 }
       );
     }
 
-    const item = await prisma.watchlistItem.create({
-      data: {
-        userId,
-        mediaId,
-        mediaType,
-        title,
-        posterPath,
-        voteAverage,
-        releaseDate,
-      },
-    });
+    const item = {
+      mediaId,
+      mediaType,
+      title,
+      posterPath: posterPath || null,
+      voteAverage: voteAverage || null,
+      releaseDate: releaseDate || null,
+      addedAt: new Date().toISOString(),
+    };
 
-    return NextResponse.json({ item }, { status: 201 });
+    await docRef.set(item);
+
+    return NextResponse.json({ item: { id: docId, ...item } }, { status: 201 });
   } catch (error) {
     console.error('Error adding to watchlist:', error);
     return NextResponse.json(
@@ -102,9 +91,9 @@ export async function POST(request: NextRequest) {
 // DELETE - Remove item from watchlist
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = await getUserId(request);
+    const user = await getFirebaseAuthUser(request);
     
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -119,15 +108,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.watchlistItem.delete({
-      where: {
-        userId_mediaId_mediaType: {
-          userId,
-          mediaId: parseInt(mediaId),
-          mediaType,
-        },
-      },
-    });
+    const db = getAdminDb();
+    const docId = `${mediaType}_${mediaId}`;
+    await db.collection('users').doc(user.id).collection('watchlist').doc(docId).delete();
 
     return NextResponse.json({ success: true });
   } catch (error) {

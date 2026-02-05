@@ -1,15 +1,15 @@
 /**
  * API Routes for User Learning State
  * 
- * Handles persistence of AI preference learning data for authenticated users.
+ * Handles persistence of AI preference learning data via Firestore.
  * GET: Retrieve user's learning state
  * POST: Save/update user's learning state
  * DELETE: Reset user's learning state
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getFirebaseAuthUser } from '@/lib/firebase-auth-helper';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
  * GET /api/user/learning
@@ -17,21 +17,20 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
+    const user = await getFirebaseAuthUser(request);
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const learningState = await prisma.userLearningState.findUnique({
-      where: { userId: session.user.id }
-    });
+    const db = getAdminDb();
+    const docRef = db.collection('users').doc(user.id).collection('data').doc('learning');
+    const docSnap = await docRef.get();
 
-    if (!learningState) {
-      // Return empty state for new users
+    if (!docSnap.exists) {
       return NextResponse.json({
         learningData: null,
         totalLikes: 0,
@@ -39,11 +38,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const data = docSnap.data()!;
     return NextResponse.json({
-      learningData: learningState.learningData ? JSON.parse(learningState.learningData) : null,
-      totalLikes: learningState.totalLikes,
-      totalDislikes: learningState.totalDislikes,
-      updatedAt: learningState.updatedAt
+      learningData: data.learningData || null,
+      totalLikes: data.totalLikes || 0,
+      totalDislikes: data.totalDislikes || 0,
+      updatedAt: data.updatedAt || null
     });
   } catch (error) {
     console.error('[API] Error fetching learning state:', error);
@@ -60,9 +60,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const user = await getFirebaseAuthUser(request);
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -79,25 +79,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upsert the learning state
-    const result = await prisma.userLearningState.upsert({
-      where: { userId: session.user.id },
-      update: {
-        learningData: JSON.stringify(learningData),
-        totalLikes: totalLikes ?? 0,
-        totalDislikes: totalDislikes ?? 0
-      },
-      create: {
-        userId: session.user.id,
-        learningData: JSON.stringify(learningData),
-        totalLikes: totalLikes ?? 0,
-        totalDislikes: totalDislikes ?? 0
-      }
-    });
+    const db = getAdminDb();
+    const docRef = db.collection('users').doc(user.id).collection('data').doc('learning');
+    const now = new Date().toISOString();
+
+    await docRef.set({
+      learningData,
+      totalLikes: totalLikes ?? 0,
+      totalDislikes: totalDislikes ?? 0,
+      updatedAt: now,
+    }, { merge: true });
 
     return NextResponse.json({
       success: true,
-      updatedAt: result.updatedAt
+      updatedAt: now
     });
   } catch (error) {
     console.error('[API] Error saving learning state:', error);
@@ -114,18 +109,17 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth();
+    const user = await getFirebaseAuthUser(request);
     
-    if (!session?.user?.id) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    await prisma.userLearningState.deleteMany({
-      where: { userId: session.user.id }
-    });
+    const db = getAdminDb();
+    await db.collection('users').doc(user.id).collection('data').doc('learning').delete();
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,58 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+/**
+ * Tab Login API Route
+ * 
+ * Verifies a Firebase ID token and returns user info.
+ * The client-side Firebase SDK handles the actual email/password authentication.
+ * This endpoint just verifies the resulting token server-side.
+ */
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { idToken } = await request.json();
 
-    if (!email || !password) {
+    if (!idToken) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Firebase ID token is required' },
         { status: 400 }
       );
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const adminAuth = getAdminAuth();
 
-    if (!user || !user.password) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      );
-    }
+    // Verify the Firebase ID token
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-    // Verify password
-    const isValid = await bcrypt.compare(password, user.password);
-
-    if (!isValid) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      );
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Get full user record
+    const userRecord = await adminAuth.getUser(decodedToken.uid);
 
     return NextResponse.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
+        id: userRecord.uid,
+        name: userRecord.displayName || null,
+        email: userRecord.email || null,
+        image: userRecord.photoURL || null,
       },
-      token,
+      token: idToken,
     });
   } catch (error) {
     console.error('Tab login error:', error);
