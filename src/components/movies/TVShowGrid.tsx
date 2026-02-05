@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { TVShow } from '@/types/movie';
 import { TVShowCard } from './TVShowCard';
+import { CompactPosterCard } from './CompactPosterCard';
 import { MovieGridSkeleton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
@@ -156,15 +157,15 @@ export function TVShowCarousel({
   };
 
   return (
-    <section className={cn('relative py-8', className)}>
+    <section className={cn('relative py-4 md:py-6', className)}>
       {/* Header */}
       {(title || description) && (
-        <div className="mb-6 px-4 md:px-0">
+        <div className="mb-3 px-4 md:px-0">
           {title && (
-            <h2 className="text-2xl md:text-3xl font-bold text-white">{title}</h2>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{title}</h2>
           )}
           {description && (
-            <p className="text-gray-400 mt-1">{description}</p>
+            <p className="text-sm text-gray-400 mt-0.5">{description}</p>
           )}
         </div>
       )}
@@ -203,11 +204,11 @@ export function TVShowCarousel({
         {/* Scrollable content */}
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth px-4 md:px-0"
+          className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth px-4 md:px-0"
         >
           {shows.map((show, index) => (
-            <div key={show.id} className="flex-shrink-0 w-36 sm:w-44 md:w-48">
-              <TVShowCard show={show} priority={index < 4} />
+            <div key={show.id} className="flex-shrink-0 w-[120px] sm:w-[140px] md:w-[160px]">
+              <CompactPosterCard tvShow={show} priority={index < 4} />
             </div>
           ))}
         </div>

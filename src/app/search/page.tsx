@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { searchMovies, searchTVShows, multiSearch } from '@/lib/tmdb';
-import { MovieGrid, TVShowGrid } from '@/components/movies';
+import { CompactPosterGrid } from '@/components/movies';
 import { MovieGridSkeleton } from '@/components/ui';
 import { SearchBar } from '@/components/layout';
 import { Movie, TVShow, isMovie, isTVShow } from '@/types/movie';
@@ -39,7 +39,7 @@ async function SearchResults({ query, page, type }: { query: string; page: numbe
         <p className="text-gray-400 mb-6">
           Found {results.total_results.toLocaleString()} movies for &ldquo;{query}&rdquo;
         </p>
-        <MovieGrid movies={results.results} />
+        <CompactPosterGrid movies={results.results} />
         <Pagination query={query} page={page} totalPages={results.total_pages} type={type} />
       </>
     );
@@ -55,7 +55,7 @@ async function SearchResults({ query, page, type }: { query: string; page: numbe
         <p className="text-gray-400 mb-6">
           Found {results.total_results.toLocaleString()} TV shows for &ldquo;{query}&rdquo;
         </p>
-        <TVShowGrid shows={results.results} />
+        <CompactPosterGrid tvShows={results.results} />
         <Pagination query={query} page={page} totalPages={results.total_pages} type={type} />
       </>
     );
@@ -95,7 +95,7 @@ async function SearchResults({ query, page, type }: { query: string; page: numbe
               </a>
             )}
           </div>
-          <MovieGrid movies={movieResults.results.slice(0, 12)} />
+          <CompactPosterGrid movies={movieResults.results.slice(0, 12)} />
         </div>
       )}
 
@@ -115,7 +115,7 @@ async function SearchResults({ query, page, type }: { query: string; page: numbe
               </a>
             )}
           </div>
-          <TVShowGrid shows={tvResults.results.slice(0, 12)} />
+          <CompactPosterGrid tvShows={tvResults.results.slice(0, 12)} />
         </div>
       )}
     </>
@@ -170,9 +170,9 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   const type = searchParams.type || 'all';
 
   return (
-    <div className="container mx-auto px-4 md:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
+    <div className="container mx-auto px-4 md:px-8 py-4 md:py-6">
+      <div className="mb-4">
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-white mb-3">
           🔍 Search Movies & TV Shows
         </h1>
         <div className="max-w-xl">

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { discoverMovies } from '@/lib/tmdb';
-import { MovieGrid } from '@/components/movies';
+import { CompactPosterGrid } from '@/components/movies';
 import { MovieGridSkeleton, Button } from '@/components/ui';
 
 export const metadata: Metadata = {
@@ -79,7 +79,7 @@ async function RecommendationResults({ searchParams }: ResultsPageProps) {
           </Button>
         </Link>
       </div>
-      <MovieGrid movies={movies.results} />
+      <CompactPosterGrid movies={movies.results} />
     </div>
   );
 }

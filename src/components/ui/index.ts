@@ -1,6 +1,8 @@
 export { Button } from './Button';
 export { Input } from './Input';
 export { Badge, RatingBadge } from './Badge';
+export { DropdownSelect } from './DropdownSelect';
+export type { DropdownOption } from './DropdownSelect';
 export {
   Skeleton,
   MovieCardSkeleton,

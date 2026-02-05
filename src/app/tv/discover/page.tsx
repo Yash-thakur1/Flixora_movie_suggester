@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { discoverTVShows } from '@/lib/tmdb';
-import { TVShowGrid } from '@/components/movies';
+import { CompactPosterGrid } from '@/components/movies';
 import { MovieGridSkeleton } from '@/components/ui';
 import { TVDiscoverFilters } from './TVDiscoverFilters';
 
@@ -35,13 +35,13 @@ async function DiscoverContent({ searchParams }: DiscoverPageProps) {
 
   return (
     <>
-      <div className="mb-6">
-        <p className="text-gray-400">
+      <div className="mb-4">
+        <p className="text-sm text-gray-400">
           Found {shows.total_results.toLocaleString()} TV shows
         </p>
       </div>
 
-      <TVShowGrid shows={shows.results} />
+      <CompactPosterGrid tvShows={shows.results} />
 
       {/* Pagination */}
       {shows.total_pages > 1 && (
@@ -79,12 +79,12 @@ async function DiscoverContent({ searchParams }: DiscoverPageProps) {
 
 export default function TVDiscoverPage({ searchParams }: DiscoverPageProps) {
   return (
-    <div className="container mx-auto px-4 md:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
+    <div className="container mx-auto px-4 md:px-8 py-4 md:py-6">
+      <div className="mb-4">
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-white mb-1">
           📺 Discover TV Series
         </h1>
-        <p className="text-gray-400">
+        <p className="text-sm text-gray-400">
           Browse through thousands of TV shows and find your next binge
         </p>
       </div>

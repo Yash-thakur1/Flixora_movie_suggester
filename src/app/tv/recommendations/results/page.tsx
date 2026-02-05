@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { discoverTVShows } from '@/lib/tmdb';
-import { TVShowGrid } from '@/components/movies';
+import { CompactPosterGrid } from '@/components/movies';
 import { MovieGridSkeleton, Button } from '@/components/ui';
 
 export const metadata: Metadata = {
@@ -108,7 +108,7 @@ async function TVRecommendationResults({ searchParams }: ResultsPageProps) {
           </Button>
         </Link>
       </div>
-      <TVShowGrid shows={shows.results} />
+      <CompactPosterGrid tvShows={shows.results} />
     </div>
   );
 }

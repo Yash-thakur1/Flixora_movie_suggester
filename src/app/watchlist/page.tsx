@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Trash2, Film, Tv } from 'lucide-react';
 import { useWatchlistStore } from '@/store';
-import { MovieGrid, TVShowGrid } from '@/components/movies';
+import { CompactPosterGrid } from '@/components/movies';
 import { Button } from '@/components/ui';
 
 export default function WatchlistPage() {
@@ -39,10 +39,10 @@ export default function WatchlistPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 md:px-8 py-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto px-4 md:px-8 py-4 md:py-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-2">
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-white mb-1">
             📚 My Watchlist
           </h1>
           <p className="text-gray-400">
@@ -133,7 +133,7 @@ export default function WatchlistPage() {
           {/* Content based on active tab */}
           {activeTab === 'movies' ? (
             items.length > 0 ? (
-              <MovieGrid movies={items} />
+              <CompactPosterGrid movies={items} />
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-16 h-16 mb-4 rounded-full bg-dark-800 flex items-center justify-center">
@@ -148,7 +148,7 @@ export default function WatchlistPage() {
             )
           ) : (
             tvItems.length > 0 ? (
-              <TVShowGrid shows={tvItems} />
+              <CompactPosterGrid tvShows={tvItems} />
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-16 h-16 mb-4 rounded-full bg-dark-800 flex items-center justify-center">

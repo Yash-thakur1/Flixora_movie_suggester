@@ -4,7 +4,7 @@ import { useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movie } from '@/types/movie';
-import { MovieCard } from './MovieCard';
+import { CompactPosterCard } from './CompactPosterCard';
 import { cn } from '@/lib/utils';
 import { useMovieViewportPrefetch } from '@/hooks';
 
@@ -49,15 +49,15 @@ export function MovieCarousel({
   };
 
   return (
-    <section ref={prefetchRef} className={cn('relative py-8', className)}>
+    <section ref={prefetchRef} className={cn('relative py-4 md:py-6', className)}>
       {/* Header */}
       {(title || description) && (
-        <div className="mb-6 px-4 md:px-0">
+        <div className="mb-3 px-4 md:px-0">
           {title && (
-            <h2 className="text-2xl md:text-3xl font-bold text-white">{title}</h2>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{title}</h2>
           )}
           {description && (
-            <p className="text-gray-400 mt-1">{description}</p>
+            <p className="text-sm text-gray-400 mt-0.5">{description}</p>
           )}
         </div>
       )}
@@ -98,7 +98,7 @@ export function MovieCarousel({
         <div
           ref={scrollRef}
           className={cn(
-            'flex gap-4 overflow-x-auto scrollbar-hide',
+            'flex gap-3 overflow-x-auto scrollbar-hide',
             'px-4 md:px-0 pb-4',
             'scroll-smooth snap-x snap-mandatory'
           )}
@@ -113,9 +113,9 @@ export function MovieCarousel({
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
-              className="shrink-0 w-[160px] md:w-[200px] snap-start"
+              className="shrink-0 w-[120px] sm:w-[140px] md:w-[160px] snap-start"
             >
-              <MovieCard movie={movie} priority={index < 5} />
+              <CompactPosterCard movie={movie} priority={index < 5} />
             </motion.div>
           ))}
         </div>

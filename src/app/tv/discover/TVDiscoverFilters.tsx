@@ -2,7 +2,18 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TV_GENRES, TV_SORT_OPTIONS } from '@/lib/tmdb';
-import { cn } from '@/lib/utils';
+import { DropdownSelect, DropdownOption } from '@/components/ui/DropdownSelect';
+
+const genreOptions: DropdownOption[] = TV_GENRES.map((g) => ({
+  value: g.id,
+  label: g.name,
+  icon: g.icon,
+}));
+
+const sortOptions: DropdownOption[] = TV_SORT_OPTIONS.map((s) => ({
+  value: s.value,
+  label: s.label,
+}));
 
 export function TVDiscoverFilters() {
   const router = useRouter();
@@ -19,91 +30,65 @@ export function TVDiscoverFilters() {
     } else {
       params.delete(key);
     }
-    params.delete('page'); // Reset to page 1 on filter change
+    params.delete('page');
     router.push(`/tv/discover?${params.toString()}`);
   };
 
-  const toggleGenre = (genreId: number) => {
-    const newGenres = currentGenres.includes(genreId)
-      ? currentGenres.filter((id) => id !== genreId)
-      : [...currentGenres, genreId];
-    updateParams('genres', newGenres.join(','));
+  const handleGenreChange = (values: (string | number)[]) => {
+    updateParams('genres', values.map(Number).join(','));
+  };
+
+  const handleSortChange = (value: string | number | null) => {
+    updateParams('sort', (value as string) || 'popularity.desc');
   };
 
   const currentYearValue = new Date().getFullYear();
-  const years = Array.from({ length: 50 }, (_, i) => currentYearValue - i);
+  const yearOptions: DropdownOption[] = [
+    { value: '', label: 'All Years' },
+    ...Array.from({ length: 50 }, (_, i) => ({
+      value: currentYearValue - i,
+      label: String(currentYearValue - i),
+    })),
+  ];
 
   return (
-    <div className="mb-8 space-y-6">
-      {/* Genre Filter */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Genres</h3>
-        <div className="flex flex-wrap gap-2">
-          {TV_GENRES.map((genre) => (
-            <button
-              key={genre.id}
-              onClick={() => toggleGenre(genre.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-sm font-medium transition-all',
-                'border hover:scale-105',
-                currentGenres.includes(genre.id)
-                  ? 'bg-primary-600/20 border-primary-500 text-white'
-                  : 'bg-dark-800 border-dark-600 text-gray-400 hover:text-white hover:border-primary-500/50'
-              )}
-            >
-              {genre.icon} {genre.name}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="mb-6 flex flex-wrap items-end gap-3">
+      <DropdownSelect
+        mode="multi"
+        options={genreOptions}
+        value={currentGenres}
+        onChange={handleGenreChange}
+        placeholder="All Genres"
+        label="Genres"
+        className="w-48"
+      />
 
-      {/* Sort and Year */}
-      <div className="flex flex-wrap gap-4">
-        {/* Sort */}
-        <div>
-          <label className="text-sm font-medium text-gray-400 block mb-2">Sort By</label>
-          <select
-            value={currentSort}
-            onChange={(e) => updateParams('sort', e.target.value)}
-            className="bg-dark-800 border border-dark-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            {TV_SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <DropdownSelect
+        options={sortOptions}
+        value={currentSort}
+        onChange={handleSortChange}
+        placeholder="Sort by"
+        label="Sort By"
+        className="w-44"
+      />
 
-        {/* Year */}
-        <div>
-          <label className="text-sm font-medium text-gray-400 block mb-2">Year</label>
-          <select
-            value={currentYear}
-            onChange={(e) => updateParams('year', e.target.value)}
-            className="bg-dark-800 border border-dark-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">All Years</option>
-            {years.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
+      <DropdownSelect
+        options={yearOptions}
+        value={currentYear ? Number(currentYear) : null}
+        onChange={(v) => updateParams('year', v ? String(v) : '')}
+        placeholder="All Years"
+        label="Year"
+        className="w-36"
+      />
 
-        {/* Clear Filters */}
-        {(currentGenres.length > 0 || currentYear) && (
-          <div className="flex items-end">
-            <button
-              onClick={() => router.push('/tv/discover')}
-              className="px-4 py-2 text-primary-400 hover:text-primary-300 transition-colors"
-            >
-              Clear Filters
-            </button>
-          </div>
-        )}
-      </div>
+      {(currentGenres.length > 0 || currentYear) && (
+        <button
+          onClick={() => router.push('/tv/discover')}
+          className="text-sm text-primary-400 hover:text-primary-300 transition-colors pb-1"
+        >
+          Clear all
+        </button>
+      )}
     </div>
   );
 }

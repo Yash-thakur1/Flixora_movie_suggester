@@ -1,34 +1,48 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { QuickMoodButtons } from '@/components/features';
+import { QUICK_MOODS } from '@/lib/tmdb/config';
+import { DropdownSelect, DropdownOption } from '@/components/ui/DropdownSelect';
 
 /**
- * Client wrapper for QuickMoodButtons
- * Handles navigation to discover page with selected mood genres
+ * QuickMoodsSection — dropdown version
+ * "How are you feeling today?" with a single compact dropdown
  */
+
+const moodOptions: DropdownOption[] = QUICK_MOODS.map((m) => ({
+  value: m.id,
+  label: m.label,
+  icon: m.icon,
+}));
+
 export function QuickMoodsSection() {
   const router = useRouter();
+  const [selected, setSelected] = useState<string | number | null>(null);
 
-  const handleSelectMood = (moodId: string, genres: readonly number[]) => {
-    if (genres.length === 0) {
-      // "Surprise me" - go to random top rated
+  const handleChange = (value: string | number | null) => {
+    setSelected(value);
+    if (!value) return;
+    const mood = QUICK_MOODS.find((m) => m.id === value);
+    if (!mood) return;
+
+    if (mood.genres.length === 0) {
       router.push('/discover?sort=vote_average.desc');
     } else {
-      // Navigate to discover with selected genres
-      router.push(`/discover?genre=${genres.join(',')}`);
+      router.push(`/discover?genre=${mood.genres.join(',')}`);
     }
   };
 
   return (
-    <div className="py-8">
-      <h2 className="text-xl md:text-2xl font-bold text-white mb-4">
-        How are you feeling today?
-      </h2>
-      <p className="text-gray-400 mb-6">
-        Click a mood to get instant recommendations
-      </p>
-      <QuickMoodButtons onSelectMood={handleSelectMood} />
+    <div className="py-4">
+      <DropdownSelect
+        options={moodOptions}
+        value={selected}
+        onChange={handleChange}
+        placeholder="😊 How are you feeling today?"
+        label="Quick Mood"
+        className="max-w-xs"
+      />
     </div>
   );
 }
