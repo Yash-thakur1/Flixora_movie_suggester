@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Engagement (public counters + reactions) ───────────────
+    // Reads are public so every client gets live onSnapshot updates.
+    // Writes are denied – all mutations go through the Admin SDK
+    // in /api/engagement which bypasses these rules.
+    match /engagement/{docId} {
+      allow read: if true;
+      allow write: if false;
+
+      match /reactions/{visitorId} {
+        allow read: if true;
+        allow write: if false;
+      }
+    }
+
+    // ─── User private data ──────────────────────────────────────
+    // Only the authenticated owner can read/write their own data.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // ─── Default deny ───────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

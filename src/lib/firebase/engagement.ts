@@ -1,24 +1,18 @@
 /**
- * Firestore Engagement Service
+ * Firestore Engagement – Real-time Client Service
  *
- * Handles Like / Dislike reactions for movies and TV shows.
+ * Provides live `onSnapshot` subscriptions so every connected client
+ * receives instant counter updates when any user reacts.
  *
- * Collections:
- *   engagement/{mediaType}_{mediaId}          – aggregate counters
- *   engagement/{mediaType}_{mediaId}/reactions/{userId}  – per-user reaction
+ * Collections (written by Admin SDK only):
+ *   engagement/{mediaType}_{mediaId}                     – { likes, dislikes }
+ *   engagement/{mediaType}_{mediaId}/reactions/{visitorId} – { reaction }
  */
 
 import {
   doc,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  increment,
   onSnapshot,
-  serverTimestamp,
-  runTransaction,
-  Timestamp,
-  Unsubscribe,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { getFirebaseDb } from './config';
 
@@ -33,11 +27,6 @@ export interface EngagementCounts {
   dislikes: number;
 }
 
-export interface UserReaction {
-  reaction: ReactionType;
-  createdAt: Timestamp;
-}
-
 // ============================================
 // Helpers
 // ============================================
@@ -47,159 +36,77 @@ function engagementDocId(mediaType: 'movie' | 'tv', mediaId: number): string {
 }
 
 // ============================================
-// Read Operations
+// Real-time Subscriptions
 // ============================================
 
 /**
- * Fetch current like/dislike counts for a media item.
- */
-export async function getEngagementCounts(
-  mediaType: 'movie' | 'tv',
-  mediaId: number,
-): Promise<EngagementCounts> {
-  try {
-    const db = getFirebaseDb();
-    const docRef = doc(db, 'engagement', engagementDocId(mediaType, mediaId));
-    const snap = await getDoc(docRef);
-
-    if (snap.exists()) {
-      const data = snap.data();
-      return { likes: data.likes ?? 0, dislikes: data.dislikes ?? 0 };
-    }
-    return { likes: 0, dislikes: 0 };
-  } catch (error) {
-    console.error('[Engagement] Error fetching counts:', error);
-    return { likes: 0, dislikes: 0 };
-  }
-}
-
-/**
- * Subscribe to real-time count updates. Returns an unsubscribe function.
+ * Subscribe to live like/dislike counters for a media item.
+ * The `onCounts` callback fires immediately with the current value
+ * and again whenever any user's reaction changes the totals.
+ *
+ * @returns unsubscribe function
  */
 export function subscribeToEngagement(
   mediaType: 'movie' | 'tv',
   mediaId: number,
-  onUpdate: (counts: EngagementCounts) => void,
+  onCounts: (counts: EngagementCounts) => void,
+  onError?: (error: Error) => void,
 ): Unsubscribe {
   const db = getFirebaseDb();
-  const docRef = doc(db, 'engagement', engagementDocId(mediaType, mediaId));
+  const ref = doc(db, 'engagement', engagementDocId(mediaType, mediaId));
 
   return onSnapshot(
-    docRef,
+    ref,
     (snap) => {
       if (snap.exists()) {
-        const data = snap.data();
-        onUpdate({ likes: data.likes ?? 0, dislikes: data.dislikes ?? 0 });
+        const d = snap.data();
+        onCounts({ likes: d.likes ?? 0, dislikes: d.dislikes ?? 0 });
       } else {
-        onUpdate({ likes: 0, dislikes: 0 });
+        onCounts({ likes: 0, dislikes: 0 });
       }
     },
     (err) => {
-      console.error('[Engagement] Snapshot error:', err);
+      console.error('[Engagement] onSnapshot counters error:', err);
+      onError?.(err as Error);
     },
   );
 }
 
 /**
- * Get the current user's reaction for a media item (or null).
+ * Subscribe to a specific visitor's reaction for a media item.
+ * Fires immediately with the current reaction (or null) and
+ * again whenever the visitor toggles their reaction.
+ *
+ * @returns unsubscribe function
  */
-export async function getUserReaction(
+export function subscribeToUserReaction(
   mediaType: 'movie' | 'tv',
   mediaId: number,
-  userId: string,
-): Promise<ReactionType | null> {
-  try {
-    const db = getFirebaseDb();
-    const docRef = doc(
-      db,
-      'engagement',
-      engagementDocId(mediaType, mediaId),
-      'reactions',
-      userId,
-    );
-    const snap = await getDoc(docRef);
-
-    if (snap.exists()) {
-      return (snap.data() as UserReaction).reaction;
-    }
-    return null;
-  } catch (error) {
-    console.error('[Engagement] Error fetching user reaction:', error);
-    return null;
-  }
-}
-
-// ============================================
-// Write Operations (Transactional)
-// ============================================
-
-/**
- * Toggle a reaction for the current user.
- *
- * - If the user has no reaction → set to `reaction`.
- * - If the user already has the same reaction → remove it (un-react).
- * - If the user has the opposite reaction → switch it.
- *
- * Returns the new reaction state (or null if removed).
- */
-export async function toggleReaction(
-  mediaType: 'movie' | 'tv',
-  mediaId: number,
-  userId: string,
-  reaction: ReactionType,
-): Promise<ReactionType | null> {
+  visitorId: string,
+  onReaction: (reaction: ReactionType | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
   const db = getFirebaseDb();
-  const parentId = engagementDocId(mediaType, mediaId);
-  const countsRef = doc(db, 'engagement', parentId);
-  const reactionRef = doc(db, 'engagement', parentId, 'reactions', userId);
+  const ref = doc(
+    db,
+    'engagement',
+    engagementDocId(mediaType, mediaId),
+    'reactions',
+    visitorId,
+  );
 
-  return runTransaction(db, async (tx) => {
-    const countsSnap = await tx.get(countsRef);
-    const reactionSnap = await tx.get(reactionRef);
-
-    const currentCounts: EngagementCounts = countsSnap.exists()
-      ? { likes: countsSnap.data().likes ?? 0, dislikes: countsSnap.data().dislikes ?? 0 }
-      : { likes: 0, dislikes: 0 };
-
-    const existingReaction: ReactionType | null = reactionSnap.exists()
-      ? (reactionSnap.data() as UserReaction).reaction
-      : null;
-
-    if (existingReaction === reaction) {
-      // Un-react: remove the reaction
-      tx.delete(reactionRef);
-      tx.set(countsRef, {
-        likes: reaction === 'like' ? Math.max(0, currentCounts.likes - 1) : currentCounts.likes,
-        dislikes: reaction === 'dislike' ? Math.max(0, currentCounts.dislikes - 1) : currentCounts.dislikes,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      return null;
-    }
-
-    if (existingReaction && existingReaction !== reaction) {
-      // Switch reaction
-      tx.set(reactionRef, { reaction, createdAt: serverTimestamp() });
-      tx.set(countsRef, {
-        likes:
-          reaction === 'like'
-            ? currentCounts.likes + 1
-            : Math.max(0, currentCounts.likes - 1),
-        dislikes:
-          reaction === 'dislike'
-            ? currentCounts.dislikes + 1
-            : Math.max(0, currentCounts.dislikes - 1),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      return reaction;
-    }
-
-    // New reaction
-    tx.set(reactionRef, { reaction, createdAt: serverTimestamp() });
-    tx.set(countsRef, {
-      likes: reaction === 'like' ? currentCounts.likes + 1 : currentCounts.likes,
-      dislikes: reaction === 'dislike' ? currentCounts.dislikes + 1 : currentCounts.dislikes,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    return reaction;
-  });
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (snap.exists()) {
+        onReaction((snap.data()?.reaction as ReactionType) ?? null);
+      } else {
+        onReaction(null);
+      }
+    },
+    (err) => {
+      console.error('[Engagement] onSnapshot reaction error:', err);
+      onError?.(err as Error);
+    },
+  );
 }

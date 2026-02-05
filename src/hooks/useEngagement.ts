@@ -1,20 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  subscribeToEngagement,
+  subscribeToUserReaction,
+  type ReactionType,
+  type EngagementCounts,
+} from '@/lib/firebase/engagement';
+
+// Re-export types so consumers can import from the hook
+export type { ReactionType, EngagementCounts };
 
 // ============================================
-// Types
-// ============================================
-
-export type ReactionType = 'like' | 'dislike';
-
-export interface EngagementCounts {
-  likes: number;
-  dislikes: number;
-}
-
-// ============================================
-// Stable visitor ID (auth UID for logged-in, random for guests)
+// Stable visitor ID (Firebase UID or random guest)
 // ============================================
 
 const GUEST_ID_KEY = 'flixora-guest-id';
@@ -30,37 +28,43 @@ function getOrCreateGuestId(): string {
 }
 
 // ============================================
-// API helpers
+// Session cache (survives SPA navigations)
 // ============================================
 
-interface APIResponse {
+const CACHE_KEY = 'flixora-engagement-cache';
+
+interface CacheEntry {
   counts: EngagementCounts;
-  userReaction: ReactionType | null;
+  reaction: ReactionType | null;
 }
+
+function getCached(key: string): CacheEntry | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    return cache[key] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function setCache(key: string, entry: CacheEntry) {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    const cache = raw ? JSON.parse(raw) : {};
+    cache[key] = entry;
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch { /* quota exceeded – ignore */ }
+}
+
+// ============================================
+// API helpers (writes go through Admin SDK)
+// ============================================
 
 interface ToggleResponse {
   reaction: ReactionType | null;
   counts: EngagementCounts;
-}
-
-async function fetchEngagement(
-  mediaType: 'movie' | 'tv',
-  mediaId: number,
-  visitorId: string,
-): Promise<APIResponse> {
-  try {
-    const params = new URLSearchParams({
-      mediaType,
-      mediaId: String(mediaId),
-      visitorId,
-    });
-    const res = await fetch(`/api/engagement?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    console.error('[useEngagement] fetch failed:', err);
-    return { counts: { likes: 0, dislikes: 0 }, userReaction: null };
-  }
 }
 
 async function postToggle(
@@ -75,7 +79,25 @@ async function postToggle(
     body: JSON.stringify({ mediaType, mediaId, visitorId, reaction }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+  return res.json();
+}
+
+// Polling fallback when Firestore rules block client reads
+const POLL_INTERVAL = 5_000;
+
+async function fetchViaAPI(
+  mediaType: string,
+  mediaId: number,
+  visitorId: string,
+): Promise<{ counts: EngagementCounts; userReaction: ReactionType | null }> {
+  const params = new URLSearchParams({
+    mediaType,
+    mediaId: String(mediaId),
+    visitorId,
+  });
+  const res = await fetch(`/api/engagement?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 // ============================================
@@ -85,7 +107,9 @@ async function postToggle(
 interface UseEngagementOptions {
   mediaType: 'movie' | 'tv';
   mediaId: number;
-  userId?: string | null; // Firebase UID — null means guest
+  userId?: string | null;
+  /** Set to false to unsubscribe (IntersectionObserver) */
+  isVisible?: boolean;
 }
 
 interface UseEngagementReturn {
@@ -96,76 +120,127 @@ interface UseEngagementReturn {
   toggle: (reaction: ReactionType) => Promise<void>;
 }
 
-/** Polling interval for live counter refresh (ms) */
-const POLL_INTERVAL = 8_000;
-
 export function useEngagement({
   mediaType,
   mediaId,
   userId,
+  isVisible = true,
 }: UseEngagementOptions): UseEngagementReturn {
-  const [counts, setCounts] = useState<EngagementCounts>({ likes: 0, dislikes: 0 });
-  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isToggling, setIsToggling] = useState(false);
-
-  // Stable visitor ID: Firebase UID when logged in, random guest ID otherwise
   const visitorId = userId || (typeof window !== 'undefined' ? getOrCreateGuestId() : '');
+  const cacheKey = `${mediaType}_${mediaId}`;
 
-  // Refs for optimistic rollback
+  // Initialise from session cache for instant paint
+  const cached = typeof window !== 'undefined' ? getCached(cacheKey) : null;
+
+  const [counts, setCounts] = useState<EngagementCounts>(
+    cached?.counts ?? { likes: 0, dislikes: 0 },
+  );
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(
+    cached?.reaction ?? null,
+  );
+  const [isLoading, setIsLoading] = useState(!cached);
+  const [isToggling, setIsToggling] = useState(false);
+  const [usePolling, setUsePolling] = useState(false);
+
+  // Refs for stable optimistic rollback
   const countsRef = useRef(counts);
   countsRef.current = counts;
-  const userReactionRef = useRef(userReaction);
-  userReactionRef.current = userReaction;
+  const reactionRef = useRef(userReaction);
+  reactionRef.current = userReaction;
 
-  // ---- initial fetch + polling for live updates ----
+  // ─── Real-time Firestore subscriptions ───────────────────────
   useEffect(() => {
-    if (!visitorId) return;
+    if (!visitorId || !isVisible || usePolling) return;
 
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let errCount = 0;
 
-    async function load() {
-      const data = await fetchEngagement(mediaType, mediaId, visitorId);
-      if (!cancelled) {
-        setCounts(data.counts);
-        setUserReaction(data.userReaction);
+    const unsubCounts = subscribeToEngagement(
+      mediaType,
+      mediaId,
+      (next) => {
+        if (cancelled) return;
+        setCounts(next);
         setIsLoading(false);
-      }
-    }
+        setCache(cacheKey, { counts: next, reaction: reactionRef.current });
+      },
+      () => {
+        errCount++;
+        if (errCount >= 1 && !cancelled) setUsePolling(true);
+      },
+    );
 
-    // Initial load
-    load();
-
-    // Poll every few seconds so other users' reactions appear live
-    timer = setInterval(() => {
-      if (!cancelled) load();
-    }, POLL_INTERVAL);
+    const unsubReaction = subscribeToUserReaction(
+      mediaType,
+      mediaId,
+      visitorId,
+      (next) => {
+        if (cancelled) return;
+        setUserReaction(next);
+        setIsLoading(false);
+        setCache(cacheKey, { counts: countsRef.current, reaction: next });
+      },
+      () => {
+        errCount++;
+        if (errCount >= 1 && !cancelled) setUsePolling(true);
+      },
+    );
 
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
+      unsubCounts();
+      unsubReaction();
     };
-  }, [mediaType, mediaId, visitorId]);
+  }, [mediaType, mediaId, visitorId, isVisible, usePolling, cacheKey]);
 
-  // ---- toggle (optimistic UI) ----
+  // ─── Polling fallback (if Firestore rules block reads) ───────
+  useEffect(() => {
+    if (!visitorId || !isVisible || !usePolling) return;
+
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const data = await fetchViaAPI(mediaType, mediaId, visitorId);
+        if (cancelled) return;
+        setCounts(data.counts);
+        setUserReaction(data.userReaction);
+        setIsLoading(false);
+        setCache(cacheKey, { counts: data.counts, reaction: data.userReaction });
+      } catch { /* network error – try again next interval */ }
+    }
+
+    poll();
+    const timer = setInterval(poll, POLL_INTERVAL);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [mediaType, mediaId, visitorId, isVisible, usePolling, cacheKey]);
+
+  // ─── Toggle (optimistic + server sync) ───────────────────────
   const toggle = useCallback(
     async (reaction: ReactionType) => {
       if (isToggling || !visitorId) return;
       setIsToggling(true);
 
-      const prevCounts = { ...countsRef.current };
-      const prevReaction = userReactionRef.current;
+      const prev = {
+        counts: { ...countsRef.current },
+        reaction: reactionRef.current,
+      };
 
-      // Compute optimistic next state
+      // Optimistic next state
       let nextReaction: ReactionType | null;
-      const nextCounts = { ...prevCounts };
+      const nextCounts = { ...prev.counts };
 
-      if (prevReaction === reaction) {
+      if (prev.reaction === reaction) {
+        // Un-react
         nextReaction = null;
         if (reaction === 'like') nextCounts.likes = Math.max(0, nextCounts.likes - 1);
         else nextCounts.dislikes = Math.max(0, nextCounts.dislikes - 1);
-      } else if (prevReaction && prevReaction !== reaction) {
+      } else if (prev.reaction && prev.reaction !== reaction) {
+        // Switch
         nextReaction = reaction;
         if (reaction === 'like') {
           nextCounts.likes += 1;
@@ -175,30 +250,33 @@ export function useEngagement({
           nextCounts.likes = Math.max(0, nextCounts.likes - 1);
         }
       } else {
+        // New
         nextReaction = reaction;
         if (reaction === 'like') nextCounts.likes += 1;
         else nextCounts.dislikes += 1;
       }
 
-      // Apply optimistic update
+      // Apply immediately
       setUserReaction(nextReaction);
       setCounts(nextCounts);
 
       try {
-        // Persist via API route → Admin SDK (bypasses Firestore security rules)
+        // Persist via Admin SDK API
         const result = await postToggle(mediaType, mediaId, visitorId, reaction);
-        // Sync with server truth
+        // Reconcile with server truth (onSnapshot will also deliver this,
+        // but this ensures immediate consistency even if snapshots are delayed)
         setCounts(result.counts);
         setUserReaction(result.reaction);
-      } catch (error) {
-        console.error('[useEngagement] toggle failed, rolling back:', error);
-        setUserReaction(prevReaction);
-        setCounts(prevCounts);
+        setCache(cacheKey, { counts: result.counts, reaction: result.reaction });
+      } catch (err) {
+        console.error('[useEngagement] toggle failed, rolling back:', err);
+        setUserReaction(prev.reaction);
+        setCounts(prev.counts);
       } finally {
         setIsToggling(false);
       }
     },
-    [mediaType, mediaId, visitorId, isToggling],
+    [mediaType, mediaId, visitorId, isToggling, cacheKey],
   );
 
   return { counts, userReaction, isLoading, isToggling, toggle };

@@ -64,15 +64,12 @@ export {
   type MediaViewParams
 } from './analytics';
 
-// Engagement (client-side)
+// Engagement – real-time subscriptions (client-side)
 export {
-  getEngagementCounts,
-  getUserReaction,
-  toggleReaction,
   subscribeToEngagement,
+  subscribeToUserReaction,
   type ReactionType,
   type EngagementCounts,
-  type UserReaction,
 } from './engagement';
 
 // Note: Admin SDK exports are in a separate file (./admin.ts)
