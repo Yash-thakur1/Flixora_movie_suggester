@@ -21,7 +21,7 @@ export function DiscoverFilters() {
   const searchParams = useSearchParams();
 
   const currentGenres = searchParams.get('genre')?.split(',').map(Number).filter(Boolean) || [];
-  const currentSort = searchParams.get('sort') || 'popularity.desc';
+  const currentSort = searchParams.get('sort') || '';
   const currentYear = searchParams.get('year') || '';
 
   const updateParams = (key: string, value: string) => {
@@ -40,7 +40,7 @@ export function DiscoverFilters() {
   };
 
   const handleSortChange = (value: string | number | null) => {
-    updateParams('sort', (value as string) || 'popularity.desc');
+    updateParams('sort', (value as string) || '');
   };
 
   const currentYearValue = new Date().getFullYear();

@@ -224,6 +224,7 @@ export const TV_QUICK_MOODS = [
 
 // Sort options for movie lists
 export const SORT_OPTIONS = [
+  { value: '', label: 'Nothing (Default)' },
   { value: 'popularity.desc', label: 'Most Popular' },
   { value: 'vote_average.desc', label: 'Highest Rated' },
   { value: 'release_date.desc', label: 'Latest' },
@@ -233,6 +234,7 @@ export const SORT_OPTIONS = [
 
 // Sort options for TV shows
 export const TV_SORT_OPTIONS = [
+  { value: '', label: 'Nothing (Default)' },
   { value: 'popularity.desc', label: 'Most Popular' },
   { value: 'vote_average.desc', label: 'Highest Rated' },
   { value: 'first_air_date.desc', label: 'Latest' },

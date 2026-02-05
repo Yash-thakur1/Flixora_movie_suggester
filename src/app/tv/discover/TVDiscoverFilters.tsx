@@ -20,7 +20,7 @@ export function TVDiscoverFilters() {
   const searchParams = useSearchParams();
 
   const currentGenres = searchParams.get('genres')?.split(',').map(Number) || [];
-  const currentSort = searchParams.get('sort') || 'popularity.desc';
+  const currentSort = searchParams.get('sort') || '';
   const currentYear = searchParams.get('year') || '';
 
   const updateParams = (key: string, value: string) => {
@@ -39,7 +39,7 @@ export function TVDiscoverFilters() {
   };
 
   const handleSortChange = (value: string | number | null) => {
-    updateParams('sort', (value as string) || 'popularity.desc');
+    updateParams('sort', (value as string) || '');
   };
 
   const currentYearValue = new Date().getFullYear();

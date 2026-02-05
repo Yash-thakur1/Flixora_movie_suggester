@@ -19,6 +19,13 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailRegex.test(email);
+  const showEmailError = emailTouched && email.length > 0 && !isEmailValid;
+  const showEmailSuccess = emailTouched && email.length > 0 && isEmailValid;
 
   // Password strength indicators
   const hasMinLength = password.length >= 8;
@@ -37,6 +44,13 @@ export default function SignUpPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    // Validate email
+    if (!isEmailValid) {
+      setError('Please enter a valid email address');
+      setIsLoading(false);
+      return;
+    }
 
     // Validate password
     if (!hasMinLength) {
@@ -156,10 +170,25 @@ export default function SignUpPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                onBlur={() => setEmailTouched(true)}
+                className={`w-full pl-10 pr-10 py-3 bg-dark-800 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                  showEmailError
+                    ? 'border-red-500 focus:ring-red-500'
+                    : showEmailSuccess
+                    ? 'border-green-500 focus:ring-green-500'
+                    : 'border-dark-600 focus:ring-primary-500'
+                }`}
                 placeholder="you@example.com"
               />
+              {email.length > 0 && emailTouched && (
+                <span className={`absolute right-3 top-1/2 -translate-y-1/2 ${showEmailSuccess ? 'text-green-400' : 'text-red-400'}`}>
+                  {showEmailSuccess ? <Check className="w-5 h-5" /> : '✕'}
+                </span>
+              )}
             </div>
+            {showEmailError && (
+              <p className="mt-1.5 text-xs text-red-400">Please enter a valid email address</p>
+            )}
           </div>
 
           {/* Password */}
@@ -224,7 +253,7 @@ export default function SignUpPage() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isLoading || !hasMinLength || !passwordsMatch}
+            disabled={isLoading || !hasMinLength || !passwordsMatch || !isEmailValid}
             className="w-full py-3 text-lg"
           >
             {isLoading ? (
