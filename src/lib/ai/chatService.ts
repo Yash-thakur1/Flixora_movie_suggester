@@ -201,6 +201,101 @@ function getTimeGreeting(): string {
   return 'Good evening';
 }
 
+/**
+ * Apply soft watch-history-based personalization
+ * - Deprioritize (but don't remove) already-viewed items
+ * - Soft-boost items matching user's preferred genres from history
+ * - Maintain diversity to avoid echo chamber
+ */
+function applyWatchHistoryBoost(media: MediaItem[]): MediaItem[] {
+  if (typeof window === 'undefined') return media;
+  
+  try {
+    // Load watch history
+    const AUTH_KEY = 'bingebuddy-auth-session';
+    const GUEST_KEY = 'bingebuddy-guest-session-id';
+    const HISTORY_PREFIX = 'bingebuddy-watch-history';
+    
+    let userKey = 'unknown';
+    try {
+      const authData = localStorage.getItem(AUTH_KEY);
+      if (authData) {
+        const session = JSON.parse(authData);
+        if (session?.user?.id) userKey = `user-${session.user.id}`;
+      }
+    } catch {}
+    if (userKey === 'unknown') {
+      const guestId = sessionStorage.getItem(GUEST_KEY);
+      if (guestId) userKey = `guest-${guestId}`;
+    }
+    
+    const raw = localStorage.getItem(`${HISTORY_PREFIX}-${userKey}`);
+    if (!raw) return media;
+    
+    const history = JSON.parse(raw) as Array<{
+      id: number;
+      type: string;
+      genreIds: number[];
+      viewedAt: number;
+    }>;
+    
+    if (history.length === 0) return media;
+    
+    // Build viewed set
+    const viewedSet = new Set(history.map(h => `${h.type}-${h.id}`));
+    
+    // Build genre weights from history (recency-weighted)
+    const now = Date.now();
+    const MONTH = 30 * 24 * 60 * 60 * 1000;
+    const genreWeights = new Map<number, number>();
+    
+    for (const item of history) {
+      const age = now - item.viewedAt;
+      const weight = age < MONTH ? 1.0 : age < 3 * MONTH ? 0.6 : 0.3;
+      for (const gid of item.genreIds) {
+        genreWeights.set(gid, (genreWeights.get(gid) || 0) + weight);
+      }
+    }
+    
+    // Normalize genre weights to 0-1
+    const maxWeight = Math.max(...Array.from(genreWeights.values()), 1);
+    
+    // Score each item
+    const scored = media.map((item, originalIndex) => {
+      let boost = 0;
+      
+      // Soft penalty for already viewed (push to end but don't remove)
+      const key = `${item.type}-${item.id}`;
+      if (viewedSet.has(key)) {
+        boost -= 0.3;
+      }
+      
+      // Genre affinity boost (soft, capped at 0.2)
+      const genreScore = item.genreIds.reduce((sum, gid) => {
+        return sum + ((genreWeights.get(gid) || 0) / maxWeight);
+      }, 0);
+      const normalizedGenreScore = item.genreIds.length > 0 
+        ? genreScore / item.genreIds.length 
+        : 0;
+      boost += Math.min(normalizedGenreScore * 0.2, 0.2);
+      
+      // Diversity protection: keep some items from non-preferred genres (cap boost)
+      return { item, score: boost, originalIndex };
+    });
+    
+    // Sort by score (higher = better), stable sort preserving original order for ties
+    scored.sort((a, b) => {
+      const diff = b.score - a.score;
+      if (Math.abs(diff) < 0.01) return a.originalIndex - b.originalIndex;
+      return diff;
+    });
+    
+    return scored.map(s => s.item);
+  } catch {
+    return media;
+  }
+}
+
 // ============================================
 // Query Execution
 // ============================================
@@ -529,6 +624,11 @@ export async function processMessage(userMessage: string): Promise<ChatResponse>
     }
   }
   
+  // Apply watch-history-based soft boost (avoid items already viewed, boost preferred genres)
+  if (media.length > 0) {
+    media = applyWatchHistoryBoost(media);
+  }
+  
   // Track recommended items in history
   if (media.length > 0) {
     trackRecommendedItems(media);
@@ -601,20 +701,113 @@ export function createUserMessage(content: string): ChatMessage {
 }
 
 /**
- * Create a welcome message
+ * Create a welcome message with smart greeting
+ * Adapts based on time of day, returning vs new user, and user name
  */
 export function createWelcomeMessage(): ChatMessage {
   const greeting = getTimeGreeting();
+  const userName = getStoredUserName();
+  const visitInfo = getVisitInfo();
+  
+  let content: string;
+  
+  if (visitInfo.isFirstVisit) {
+    // First-time visitor
+    content = `${greeting}! 👋 Welcome to BingeBuddy!\n\nI'm your personal movie & TV discovery assistant. Tell me what you're in the mood for, and I'll find the perfect thing to watch.\n\nYou can say things like:\n• "I want something exciting"\n• "Show me romantic comedies from the 90s"\n• "What's trending this week?"\n• "I need a good thriller series"\n\nWhat are you in the mood for?`;
+  } else if (userName) {
+    // Returning authenticated user
+    const timeContext = getTimeContext();
+    content = `${greeting}, ${userName}! 👋 Welcome back to BingeBuddy.\n\n${timeContext}\n\nWhat would you like to watch?`;
+  } else {
+    // Returning guest
+    const timeContext = getTimeContext();
+    content = `${greeting}! 👋 Welcome back.\n\n${timeContext}\n\nWhat are you in the mood for?`;
+  }
+  
+  // Update visit tracking
+  markVisit();
   
   return {
     id: generateMessageId(),
     role: 'assistant',
-    content: `${greeting}! 👋 I'm your personal movie & TV discovery assistant.\n\nTell me what you're in the mood for, and I'll find the perfect thing to watch. You can say things like:\n\n• "I want something exciting"\n• "Show me romantic comedies from the 90s"\n• "What's trending this week?"\n• "I need a good thriller series"\n\nWhat are you in the mood for today?`,
+    content,
     timestamp: new Date(),
     metadata: {
       source: 'welcome'
     }
   };
+}
+
+/**
+ * Get contextual suggestion based on time of day
+ */
+function getTimeContext(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) {
+    return "Late night session? 🌙 Perfect for thrillers or mind-bending sci-fi.";
+  } else if (hour < 12) {
+    return "Starting the day with movies? ☀️ How about something uplifting or adventurous?";
+  } else if (hour < 17) {
+    return "Afternoon vibes! 🎬 Great time for a drama or action flick.";
+  } else if (hour < 21) {
+    return "Evening entertainment time! 🍿 I can find the perfect movie night pick.";
+  } else {
+    return "Winding down for the night? 🌙 I've got great picks for a cozy evening.";
+  }
+}
+
+/**
+ * Get user name from localStorage auth session
+ */
+function getStoredUserName(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem('bingebuddy-auth-session');
+    if (stored) {
+      const session = JSON.parse(stored);
+      return session?.user?.name || null;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Track visit info for greeting personalization
+ */
+const VISIT_KEY = 'bingebuddy-chat-visits';
+
+interface VisitInfo {
+  isFirstVisit: boolean;
+  visitCount: number;
+  lastVisit: number | null;
+}
+
+function getVisitInfo(): VisitInfo {
+  if (typeof window === 'undefined') return { isFirstVisit: true, visitCount: 0, lastVisit: null };
+  try {
+    const raw = localStorage.getItem(VISIT_KEY);
+    if (!raw) return { isFirstVisit: true, visitCount: 0, lastVisit: null };
+    const data = JSON.parse(raw);
+    return {
+      isFirstVisit: false,
+      visitCount: data.count || 0,
+      lastVisit: data.lastVisit || null,
+    };
+  } catch {
+    return { isFirstVisit: true, visitCount: 0, lastVisit: null };
+  }
+}
+
+function markVisit(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(VISIT_KEY);
+    const existing = raw ? JSON.parse(raw) : { count: 0 };
+    localStorage.setItem(VISIT_KEY, JSON.stringify({
+      count: (existing.count || 0) + 1,
+      lastVisit: Date.now(),
+    }));
+  } catch {}
 }
 
 /**

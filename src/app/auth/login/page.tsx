@@ -51,7 +51,15 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    await loginWithGoogle(callbackUrl);
+    setError('');
+    try {
+      await loginWithGoogle(callbackUrl);
+      // onAuthStateChanged in AuthProvider handles redirect
+    } catch {
+      setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

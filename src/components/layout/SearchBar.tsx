@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
  * Full-featured search with auto-suggestions and history
  */
 
-export function SearchBar() {
+export function SearchBar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -55,6 +55,7 @@ export function SearchBar() {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
       setIsFocused(false);
       setQuery('');
+      onNavigate?.();
     }
   };
 
@@ -64,6 +65,7 @@ export function SearchBar() {
     setIsFocused(false);
     setQuery('');
     clear();
+    onNavigate?.();
   };
 
   const handleHistoryClick = (searchTerm: string) => {
@@ -214,7 +216,7 @@ export function MobileSearchOverlay() {
           className="fixed inset-0 z-50 bg-dark-950 p-4"
         >
           <div className="flex items-center gap-4 mb-4">
-            <SearchBar />
+            <SearchBar onNavigate={closeSearch} />
             <button
               onClick={closeSearch}
               className="text-gray-400 hover:text-white"

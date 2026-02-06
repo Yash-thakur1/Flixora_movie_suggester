@@ -17,6 +17,7 @@ import { RatingBadge, Badge, MovieDetailsSkeleton } from '@/components/ui';
 import { CastSection, CrewSection, TrailerPlayer, TVShowCarousel } from '@/components/movies';
 import { TVShowDetailsActions } from './TVShowDetailsActions';
 import { TVWatchProvidersSection } from './TVWatchProviders';
+import { TVWatchTracker } from './TVWatchTracker';
 import { Credits, Cast, Crew, WatchProviderCountry } from '@/types/movie';
 
 interface TVShowPageProps {
@@ -75,6 +76,17 @@ async function TVShowContent({ id }: { id: number }) {
 
   return (
     <>
+      {/* Watch History Tracker */}
+      <TVWatchTracker
+        id={details.id}
+        name={details.name}
+        posterPath={details.poster_path}
+        genreIds={details.genres.map(g => g.id)}
+        voteAverage={details.vote_average}
+        firstAirDate={details.first_air_date}
+        originalLanguage={details.original_language}
+      />
+
       {/* Hero Backdrop */}
       <div className="relative h-[50vh] min-h-[400px] w-full overflow-hidden">
         <Image

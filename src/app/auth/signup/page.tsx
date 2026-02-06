@@ -170,7 +170,14 @@ export default function SignUpPage() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    await loginWithGoogle('/');
+    setError('');
+    try {
+      await loginWithGoogle('/');
+    } catch {
+      setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -14,6 +14,7 @@ import {
   CachedMovieData 
 } from '@/lib/movieCache';
 import { useNetworkStore } from '@/lib/network';
+import { trackMediaView } from '@/hooks/useWatchHistory';
 import { 
   RatingBadge, 
   Badge, 
@@ -420,6 +421,22 @@ export function OptimizedMoviePage({
       updateMovieCache(movieId, { credits: initialCredits });
     }
   }, [movieId, initialDetails, initialCredits]);
+
+  // Track watch history
+  useEffect(() => {
+    if (initialDetails) {
+      trackMediaView({
+        id: initialDetails.id,
+        type: 'movie',
+        title: initialDetails.title,
+        posterPath: initialDetails.poster_path,
+        genreIds: initialDetails.genres.map(g => g.id),
+        voteAverage: initialDetails.vote_average,
+        releaseDate: initialDetails.release_date,
+        originalLanguage: initialDetails.original_language,
+      });
+    }
+  }, [initialDetails]);
 
   // Load from cache or fetch if no initial data
   useEffect(() => {

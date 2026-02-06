@@ -719,3 +719,10 @@ export function useUserLearning(): UseUserLearningReturn {
     refreshState
   };
 }
+
+// ============================================
+// Re-export Watch History Hook
+// ============================================
+
+export { useWatchHistory, trackMediaView } from './useWatchHistory';
+export type { WatchHistoryItem, WatchHistoryStats } from './useWatchHistory';
