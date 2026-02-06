@@ -8,6 +8,7 @@ import { WatchlistSyncProvider } from '@/components/providers/WatchlistSyncProvi
 import { PerformanceProvider } from '@/components/providers/PerformanceProvider';
 import { NetworkStatusBanner } from '@/components/ui';
 import { LazyChat } from '@/components/chat';
+import { WebSiteSchema } from '@/components/seo';
 import './globals.css';
 
 const inter = Inter({
@@ -117,6 +118,20 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} dark`}>
       <head>
+        {/* DNS prefetch & preconnect for critical third-party origins */}
+        <link rel="dns-prefetch" href="https://image.tmdb.org" />
+        <link rel="preconnect" href="https://image.tmdb.org" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.themoviedb.org" />
+        <link rel="preconnect" href="https://api.themoviedb.org" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+
+        {/* WebSite structured data for sitelinks search box */}
+        <WebSiteSchema
+          url={SITE_URL}
+          name="BingeBuddy"
+          description="AI-powered movie and TV show recommendation engine. Discover trending films, get personalized suggestions, and build your watchlist."
+        />
+
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-GR9WJ24V6Y"
           strategy="afterInteractive"

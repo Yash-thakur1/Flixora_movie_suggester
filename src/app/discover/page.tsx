@@ -70,6 +70,16 @@ export default function DiscoverPage({ searchParams }: DiscoverPageProps) {
       <Suspense fallback={<MovieGridSkeleton />}>
         <DiscoverContent searchParams={searchParams} />
       </Suspense>
+
+      {/* SEO content */}
+      <section className="mt-8 pt-6 border-t border-dark-800/50">
+        <h2 className="text-base font-semibold text-gray-300 mb-2">Explore Movies on BingeBuddy</h2>
+        <p className="text-xs text-gray-500 max-w-2xl">
+          Filter movies by genre, release year, and rating to find exactly what you want to watch.
+          From action blockbusters to indie dramas, BingeBuddy helps you discover hidden gems and
+          critically acclaimed films across every streaming platform.
+        </p>
+      </section>
     </div>
   );
 }

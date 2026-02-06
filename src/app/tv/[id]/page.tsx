@@ -18,7 +18,10 @@ import { CastSection, CrewSection, TrailerPlayer, TVShowCarousel } from '@/compo
 import { TVShowDetailsActions } from './TVShowDetailsActions';
 import { TVWatchProvidersSection } from './TVWatchProviders';
 import { TVWatchTracker } from './TVWatchTracker';
+import { TVSeriesSchema, BreadcrumbSchema } from '@/components/seo';
 import { Credits, Cast, Crew, WatchProviderCountry } from '@/types/movie';
+
+const SITE_URL = 'https://www.bingebuddy.in';
 
 interface TVShowPageProps {
   params: { id: string };
@@ -92,9 +95,30 @@ async function TVShowContent({ id }: { id: number }) {
   }
 
   const creator = details.created_by?.[0];
+  const genreNames = details.genres?.map((g: { name: string }) => g.name) || [];
 
   return (
     <>
+      <TVSeriesSchema
+        name={details.name}
+        description={details.overview || ''}
+        image={getImageUrl(details.poster_path, 'w500') || undefined}
+        datePublished={details.first_air_date}
+        genre={genreNames}
+        rating={details.vote_average}
+        ratingCount={details.vote_count}
+        numberOfSeasons={details.number_of_seasons}
+        numberOfEpisodes={details.number_of_episodes}
+        url={`${SITE_URL}/tv/${id}`}
+      />
+      <BreadcrumbSchema
+        items={[
+          { name: 'Home', url: SITE_URL },
+          { name: 'TV Shows', url: `${SITE_URL}/tv` },
+          { name: details.name, url: `${SITE_URL}/tv/${id}` },
+        ]}
+      />
+
       {/* Watch History Tracker */}
       <TVWatchTracker
         id={details.id}

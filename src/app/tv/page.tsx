@@ -107,12 +107,12 @@ export default function TVHomePage() {
         </Suspense>
 
         {/* CTA Section */}
-        <section className="py-16 text-center">
+        <section className="py-12 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
             Looking for your next binge?
           </h2>
           <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-            Let us help you find the perfect TV series based on your mood and preferences.
+            Let our AI find the perfect TV series based on your mood, genre preferences, and viewing history.
           </p>
           <a
             href="/tv/recommendations"
@@ -120,6 +120,43 @@ export default function TVHomePage() {
           >
             ✨ Get Personalized Recommendations
           </a>
+        </section>
+
+        {/* Internal Links */}
+        <section className="py-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <a href="/tv/discover" className="group flex items-center gap-3 p-4 rounded-xl bg-dark-900/60 border border-dark-800 hover:border-primary-600/30 transition-colors">
+              <span className="text-2xl">🔍</span>
+              <div>
+                <p className="text-white text-sm font-medium group-hover:text-primary-400 transition-colors">Discover Shows</p>
+                <p className="text-gray-500 text-xs">Filter by genre & year</p>
+              </div>
+            </a>
+            <a href="/discover" className="group flex items-center gap-3 p-4 rounded-xl bg-dark-900/60 border border-dark-800 hover:border-primary-600/30 transition-colors">
+              <span className="text-2xl">🎬</span>
+              <div>
+                <p className="text-white text-sm font-medium group-hover:text-primary-400 transition-colors">Browse Movies</p>
+                <p className="text-gray-500 text-xs">Explore the film catalog</p>
+              </div>
+            </a>
+            <a href="/watchlist" className="group flex items-center gap-3 p-4 rounded-xl bg-dark-900/60 border border-dark-800 hover:border-primary-600/30 transition-colors">
+              <span className="text-2xl">🔖</span>
+              <div>
+                <p className="text-white text-sm font-medium group-hover:text-primary-400 transition-colors">Watchlist</p>
+                <p className="text-gray-500 text-xs">Save shows for later</p>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        {/* SEO content */}
+        <section className="py-6 border-t border-dark-800/50">
+          <h2 className="text-base font-semibold text-gray-300 mb-2">Discover TV Shows on BingeBuddy</h2>
+          <p className="text-xs text-gray-500 max-w-2xl">
+            Browse trending TV series, top-rated shows, and new episodes airing today. BingeBuddy
+            helps you find binge-worthy dramas, comedies, thrillers, and documentaries across every
+            streaming platform with AI-powered recommendations tailored to your taste.
+          </p>
         </section>
       </div>
     </div>
