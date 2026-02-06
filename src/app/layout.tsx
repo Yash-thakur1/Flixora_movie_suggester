@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { Inter, Outfit } from 'next/font/google';
 import { Header, Footer } from '@/components/layout';
 import { TrailerModal } from '@/components/movies';
@@ -82,6 +83,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} dark`}>
+      <head>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-GR9WJ24V6Y"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-GR9WJ24V6Y');
+          `}
+        </Script>
+      </head>
       <body className="min-h-screen bg-dark-950">
         <PerformanceProvider>
           <AuthProvider>
