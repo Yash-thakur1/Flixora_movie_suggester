@@ -40,6 +40,10 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Yash Kumar' }],
   creator: 'BingeBuddy',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
