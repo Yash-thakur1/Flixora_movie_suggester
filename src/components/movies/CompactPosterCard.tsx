@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useCallback, memo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Movie } from '@/types/movie';
@@ -12,6 +13,7 @@ import { RatingBadge } from '@/components/ui';
  * Compact poster-only card for Netflix-style dense grids
  * Minimal chrome — just the poster with a small rating badge.
  * Touch-optimised: tap goes to detail page.
+ * Progressive image loading: blur placeholder → fade-in high-res.
  */
 
 interface CompactPosterCardProps {
@@ -26,7 +28,7 @@ interface CompactPosterCardProps {
   disableLink?: boolean;
 }
 
-export function CompactPosterCard({
+export const CompactPosterCard = memo(function CompactPosterCard({
   movie,
   tvShow,
   priority = false,
@@ -36,11 +38,39 @@ export function CompactPosterCard({
   const item = movie || tvShow;
   if (!item) return null;
 
-  const isTV = !!tvShow;
+  return (
+    <CompactPosterCardInner
+      item={item}
+      isTV={!!tvShow}
+      priority={priority}
+      className={className}
+      disableLink={disableLink}
+    />
+  );
+});
+
+/** Inner component to keep the memo boundary clean */
+function CompactPosterCardInner({
+  item,
+  isTV,
+  priority,
+  className,
+  disableLink,
+}: {
+  item: Movie | TVShow;
+  isTV: boolean;
+  priority: boolean;
+  className?: string;
+  disableLink: boolean;
+}) {
+  const [loaded, setLoaded] = useState(false);
+
   const href = isTV ? `/tv/${item.id}` : `/movie/${item.id}`;
   const title = isTV ? (item as TVShow).name : (item as Movie).title;
   const posterPath = item.poster_path;
   const rating = item.vote_average;
+
+  const handleLoad = useCallback(() => setLoaded(true), []);
 
   const cardContent = (
     <>
@@ -52,18 +82,22 @@ export function CompactPosterCard({
           'md:hover:scale-105 md:hover:ring-primary-600/60 md:hover:shadow-lg'
         )}
       >
-        {/* Poster */}
+        {/* Poster with progressive loading */}
         {posterPath ? (
           <Image
             src={getImageUrl(posterPath, 'w342')}
             alt={title}
             fill
             sizes="(max-width: 480px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, 16vw"
-            className="object-cover"
+            className={cn(
+              'object-cover transition-opacity duration-500',
+              loaded ? 'opacity-100' : 'opacity-0'
+            )}
             loading={priority ? 'eager' : 'lazy'}
             placeholder="blur"
             blurDataURL={getPlaceholderDataUrl()}
             priority={priority}
+            onLoad={handleLoad}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-gray-600">
